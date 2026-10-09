@@ -6,6 +6,9 @@ import {
   Copy, Upload, AlertTriangle, Check, Search, Clock, ShieldCheck, Lock
 } from 'lucide-react';
 
+// API Base URL configuration for local & production (Render)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function App() {
   // Admin View & Authentication States
   const [isAdminView, setIsAdminView] = useState(false);
@@ -145,7 +148,7 @@ export default function App() {
 
   // Fetch Active Lotteries
   const fetchLotteries = () => {
-    fetch('http://localhost:5000/api/lotteries')
+    fetch(`${API_URL}/api/lotteries`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.lotteries.length > 0) {
@@ -162,7 +165,7 @@ export default function App() {
   // Fetch All Tickets for Admin
   const fetchAdminTickets = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/admin/tickets');
+      const res = await fetch(`${API_URL}/api/admin/tickets`);
       const data = await res.json();
       if (data.success) {
         setAdminTickets(data.tickets);
@@ -175,7 +178,7 @@ export default function App() {
   // Admin Handler: Add New Lottery Car
   const handleAddLottery = async (newCarData) => {
     try {
-      const res = await fetch('http://localhost:5000/api/lotteries', {
+      const res = await fetch(`${API_URL}/api/lotteries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCarData)
@@ -193,7 +196,7 @@ export default function App() {
   // Admin Handler: Approve Ticket
   const handleApprove = async (orderId) => {
     try {
-      await fetch(`http://localhost:5000/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
+      await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
       fetchAdminTickets();
       fetchUserTickets();
     } catch (err) {
@@ -204,7 +207,7 @@ export default function App() {
   // Admin Handler: Reject Ticket
   const handleReject = async (orderId) => {
     try {
-      await fetch(`http://localhost:5000/api/admin/tickets/${orderId}/reject`, { method: 'PATCH' });
+      await fetch(`${API_URL}/api/admin/tickets/${orderId}/reject`, { method: 'PATCH' });
       fetchAdminTickets();
       fetchUserTickets();
     } catch (err) {
@@ -214,7 +217,7 @@ export default function App() {
 
   // Fetch Tickets by User Phone Number
   const fetchUserTickets = () => {
-    fetch(`http://localhost:5000/api/tickets/user-tickets?phoneNumber=${encodeURIComponent(phoneNumber)}`)
+    fetch(`${API_URL}/api/tickets/user-tickets?phoneNumber=${encodeURIComponent(phoneNumber)}`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.tickets.length > 0) {
@@ -293,7 +296,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/tickets/order', {
+      const res = await fetch(`${API_URL}/api/tickets/order`, {
         method: 'POST',
         body: formData
       });
