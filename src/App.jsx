@@ -38,9 +38,10 @@ export default function App() {
 
   // User & Profile State
   const [fullName, setFullName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('+251954341033');
-  const [savedPhoneInput, setSavedPhoneInput] = useState('+251954341033');
-  const [customerId] = useState('_QIZ10PM');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [savedPhoneInput, setSavedPhoneInput] = useState('');
+  const [customerId, setCustomerId] = useState('_QIZ10PM');
+  const [telegramId, setTelegramId] = useState('');
   const [isSavedToast, setIsSavedToast] = useState(false);
 
   // Order Details
@@ -84,6 +85,48 @@ export default function App() {
   ];
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
+
+  // Detect Telegram User on Mount & Sync User Data
+  useEffect(() => {
+    if (window.Telegram && window.Telegram.WebApp) {
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      const user = tg.initDataUnsafe?.user;
+      if (user && user.id) {
+        const tId = String(user.id);
+        setTelegramId(tId);
+        setCustomerId('_' + tId.slice(-7).toUpperCase());
+      }
+    }
+  }, []);
+
+  // Fetch User Info by Telegram ID from Backend
+  useEffect(() => {
+    if (!telegramId) return;
+
+    fetch(`${API_URL}/api/tickets/user-tickets?telegramId=${encodeURIComponent(telegramId)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.tickets.length > 0) {
+          // Extract user phone number if found from their past orders
+          const userPhone = data.tickets[0].phoneNumber;
+          if (userPhone) {
+            setPhoneNumber(userPhone);
+            setSavedPhoneInput(userPhone);
+          }
+          const mappedTickets = data.tickets.map(t => ({
+            id: `#${t.selectedNumbers?.[0] || '2'}`,
+            title: lotteryData.title,
+            date: new Date(t.createdAt).toLocaleDateString('en-US'),
+            status: t.status,
+            statusText: t.status === 'APPROVED' ? 'Approved by Admin' : t.status === 'REJECTED' ? 'Payment Rejected' : 'Waiting for admin payment approval',
+            imageUrl: lotteryData.imageUrl
+          }));
+          setUserTickets(mappedTickets);
+        }
+      })
+      .catch(err => console.log('Error fetching user tickets by telegramId'));
+  }, [telegramId, lotteryData.title, lotteryData.imageUrl]);
 
   // Live Countdown Effect
   useEffect(() => {
@@ -217,6 +260,7 @@ export default function App() {
 
   // Fetch Tickets by User Phone Number
   const fetchUserTickets = () => {
+    if (!phoneNumber) return;
     fetch(`${API_URL}/api/tickets/user-tickets?phoneNumber=${encodeURIComponent(phoneNumber)}`)
       .then(res => res.json())
       .then(data => {
@@ -230,13 +274,17 @@ export default function App() {
             imageUrl: lotteryData.imageUrl
           }));
           setUserTickets(mappedTickets);
+        } else {
+          setUserTickets([]);
         }
       })
       .catch(err => console.log('Using local user tickets state'));
   };
 
   useEffect(() => {
-    fetchUserTickets();
+    if (phoneNumber) {
+      fetchUserTickets();
+    }
   }, [phoneNumber]);
 
   const toggleNumber = (num) => {
@@ -283,7 +331,7 @@ export default function App() {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append('lotteryId', lotteryData._id || '');
-    formData.append('telegramId', customerId);
+    formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
     formData.append('phoneNumber', phoneNumber);
     formData.append('selectedNumbers', JSON.stringify(selectedNumbers));
@@ -635,6 +683,7 @@ export default function App() {
                 type="text" 
                 value={phoneNumber} 
                 onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Enter phone number"
                 className="w-2/3 bg-transparent text-xs text-white focus:outline-none" 
               />
               <span className="text-gray-500 text-xs px-1">|</span>
@@ -716,7 +765,7 @@ export default function App() {
             </div>
             <div>
               <p className="text-xs text-gray-400">User Phone Number</p>
-              <p className="text-lg font-bold text-white">{phoneNumber}</p>
+              <p className="text-lg font-bold text-white">{phoneNumber || 'Not shared yet'}</p>
             </div>
           </div>
 
@@ -736,6 +785,7 @@ export default function App() {
               type="text" 
               value={savedPhoneInput} 
               onChange={(e) => setSavedPhoneInput(e.target.value)}
+              placeholder="+251..."
               className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500" 
             />
             <button 
