@@ -6,7 +6,7 @@ import {
   Copy, Upload, AlertTriangle, Check, Search, Clock, ShieldCheck, Lock
 } from 'lucide-react';
 
-// API Base URL configuration for local & production (Render)
+// API Base URL configuration for local & production
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function App() {
@@ -86,7 +86,7 @@ export default function App() {
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
 
-  // Detect Telegram User on Mount & Sync User Data
+  // Detect Telegram User on Mount & Sync User Profile
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const tg = window.Telegram.WebApp;
@@ -96,24 +96,35 @@ export default function App() {
         const tId = String(user.id);
         setTelegramId(tId);
         setCustomerId('_' + tId.slice(-7).toUpperCase());
+
+        // Automatically fetch registered user data (including phone number from bot contact sharing)
+        fetch(`${API_URL}/api/users/${tId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.user) {
+              if (data.user.phoneNumber) {
+                setPhoneNumber(data.user.phoneNumber);
+                setSavedPhoneInput(data.user.phoneNumber);
+              }
+              if (data.user.firstName && !fullName) {
+                setFullName(data.user.firstName);
+              }
+            }
+          })
+          .catch(err => console.log('Error fetching user profile'));
       }
     }
   }, []);
 
-  // Fetch User Info by Telegram ID from Backend
+  // Fetch User Tickets by Telegram ID or Phone Number
   useEffect(() => {
-    if (!telegramId) return;
+    if (!telegramId && !phoneNumber) return;
+    const queryParam = telegramId ? `telegramId=${encodeURIComponent(telegramId)}` : `phoneNumber=${encodeURIComponent(phoneNumber)}`;
 
-    fetch(`${API_URL}/api/tickets/user-tickets?telegramId=${encodeURIComponent(telegramId)}`)
+    fetch(`${API_URL}/api/tickets/user-tickets?${queryParam}`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.tickets.length > 0) {
-          // Extract user phone number if found from their past orders
-          const userPhone = data.tickets[0].phoneNumber;
-          if (userPhone) {
-            setPhoneNumber(userPhone);
-            setSavedPhoneInput(userPhone);
-          }
           const mappedTickets = data.tickets.map(t => ({
             id: `#${t.selectedNumbers?.[0] || '2'}`,
             title: lotteryData.title,
@@ -125,8 +136,8 @@ export default function App() {
           setUserTickets(mappedTickets);
         }
       })
-      .catch(err => console.log('Error fetching user tickets by telegramId'));
-  }, [telegramId, lotteryData.title, lotteryData.imageUrl]);
+      .catch(err => console.log('Error fetching user tickets'));
+  }, [telegramId, phoneNumber, lotteryData.title, lotteryData.imageUrl]);
 
   // Live Countdown Effect
   useEffect(() => {
@@ -241,7 +252,6 @@ export default function App() {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
       fetchAdminTickets();
-      fetchUserTickets();
     } catch (err) {
       console.error('Error approving ticket:', err);
     }
@@ -252,7 +262,6 @@ export default function App() {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/reject`, { method: 'PATCH' });
       fetchAdminTickets();
-      fetchUserTickets();
     } catch (err) {
       console.error('Error rejecting ticket:', err);
     }
@@ -280,12 +289,6 @@ export default function App() {
       })
       .catch(err => console.log('Using local user tickets state'));
   };
-
-  useEffect(() => {
-    if (phoneNumber) {
-      fetchUserTickets();
-    }
-  }, [phoneNumber]);
 
   const toggleNumber = (num) => {
     if (takenNumbers.includes(num)) return;
@@ -940,14 +943,14 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number</label>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number (Synced from Telegram)</label>
                     <div className="relative flex items-center">
                       <Phone className="absolute left-3.5 w-4 h-4 text-gray-400" />
                       <input 
                         type="text" 
                         value={phoneNumber} 
-                        onChange={(e) => setPhoneNumber(e.target.value)} 
-                        className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-amber-500" 
+                        readOnly 
+                        className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 pl-10 pr-4 text-sm text-gray-300 cursor-not-allowed focus:outline-none" 
                       />
                     </div>
                   </div>
