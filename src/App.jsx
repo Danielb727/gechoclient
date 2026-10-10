@@ -139,13 +139,12 @@ export default function App() {
       .catch(err => console.log('Error fetching user tickets'));
   }, [telegramId, phoneNumber, lotteryData.title, lotteryData.imageUrl]);
 
-  // Live Countdown Effect
+  // Robust Live Countdown Effect
   useEffect(() => {
     const updateCountdown = () => {
-      if (!lotteryData.endDate) return;
-
+      const targetDate = lotteryData.endDate ? new Date(lotteryData.endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const now = new Date().getTime();
-      const end = new Date(lotteryData.endDate).getTime();
+      const end = targetDate.getTime();
       const difference = end - now;
 
       if (difference > 0) {
@@ -421,6 +420,7 @@ export default function App() {
           onApprove={handleApprove}
           onReject={handleReject}
           onAddLottery={handleAddLottery}
+          apiUrl={API_URL}
         />
       </div>
     );

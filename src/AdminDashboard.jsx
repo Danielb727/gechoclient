@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, X, Car, Clock, FileText, User, Phone, CreditCard } from 'lucide-react';
 
-export default function AdminDashboard({ tickets = [], onApprove, onReject, onAddLottery }) {
+export default function AdminDashboard({ tickets = [], onApprove, onReject, onAddLottery, apiUrl = 'http://localhost:5000' }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -105,19 +105,19 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
                 {t.receiptUrl ? (
                   <div className="flex items-center gap-3">
                     <a 
-                      href={`http://localhost:5000${t.receiptUrl}`} 
+                      href={`${apiUrl}${t.receiptUrl}`} 
                       target="_blank" 
                       rel="noreferrer"
                       className="block overflow-hidden rounded-xl border border-emerald-500/50 hover:opacity-90 transition"
                     >
                       <img 
-                        src={`http://localhost:5000${t.receiptUrl}`} 
+                        src={`${apiUrl}${t.receiptUrl}`} 
                         alt="Payment Receipt" 
                         className="w-16 h-16 object-cover" 
                       />
                     </a>
                     <a 
-                      href={`http://localhost:5000${t.receiptUrl}`} 
+                      href={`${apiUrl}${t.receiptUrl}`} 
                       target="_blank" 
                       rel="noreferrer"
                       className="text-xs text-amber-400 hover:underline font-semibold"
