@@ -115,15 +115,17 @@ export default function App() {
     }
   }, []);
 
-  // Fetch User Tickets by Telegram ID or Phone Number
+  // Fetch User Tickets using BOTH telegramId and phoneNumber
   useEffect(() => {
     if (!telegramId && !phoneNumber) return;
-    const queryParam = telegramId ? `telegramId=${encodeURIComponent(telegramId)}` : `phoneNumber=${encodeURIComponent(phoneNumber)}`;
+    const queryParam = telegramId 
+      ? `telegramId=${encodeURIComponent(telegramId)}` 
+      : `phoneNumber=${encodeURIComponent(phoneNumber)}`;
 
     fetch(`${API_URL}/api/tickets/user-tickets?${queryParam}`)
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.tickets.length > 0) {
+        if (data.success && data.tickets) {
           const mappedTickets = data.tickets.map(t => ({
             id: `#${t.selectedNumbers?.[0] || '2'}`,
             title: lotteryData.title,
@@ -338,7 +340,7 @@ export default function App() {
     formData.append('lotteryId', lotteryData._id || '65e48f12a1b2c3d4e5f67890');
     formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
-    formData.append('phoneNumber', phoneNumber || savedPhoneInput || '+251900000000');
+    formData.append('phoneNumber', phoneNumber || savedPhoneInput);
     formData.append('selectedNumbers', JSON.stringify(selectedNumbers));
     formData.append('isQuickPick', isQuickPick);
     formData.append('ticketCount', ticketCount);
@@ -389,10 +391,22 @@ export default function App() {
     setSenderAccount('');
   };
 
-  const handleSavePhone = () => {
+  const handleSavePhone = async () => {
     setPhoneNumber(savedPhoneInput);
     setIsSavedToast(true);
     setTimeout(() => setIsSavedToast(false), 2500);
+
+    if (telegramId) {
+      try {
+        await fetch(`${API_URL}/api/users/${telegramId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber: savedPhoneInput })
+        });
+      } catch (e) {
+        console.error('Failed to update phone on backend', e);
+      }
+    }
   };
 
   // RENDER ADMIN DASHBOARD VIEW
