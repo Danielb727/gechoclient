@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 // API Base URL configuration for local & production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = 'https://amiable-determination-production-c638.up.railway.app';
 
 export default function App() {
   // Admin View & Authentication States
