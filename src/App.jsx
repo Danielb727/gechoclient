@@ -6,7 +6,7 @@ import {
   Copy, Upload, AlertTriangle, Check, Search, Clock, ShieldCheck, Lock
 } from 'lucide-react';
 
-// API Base URL configuration for local & production
+// API Base URL configuration pointing directly to your live Railway backend
 const API_URL = 'https://amiable-determination-production-c638.up.railway.app';
 
 export default function App() {
@@ -61,7 +61,7 @@ export default function App() {
 
   // Fallback Lottery
   const fallbackLottery = {
-    _id: 'default-lottery',
+    _id: '65e48f12a1b2c3d4e5f67890',
     title: '6 Gech EV Makina Equb',
     color: 'Black',
     imageUrl: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=800',
@@ -97,7 +97,6 @@ export default function App() {
         setTelegramId(tId);
         setCustomerId('_' + tId.slice(-7).toUpperCase());
 
-        // Automatically fetch registered user data (including phone number from bot contact sharing)
         fetch(`${API_URL}/api/users/${tId}`)
           .then(res => res.json())
           .then(data => {
@@ -332,7 +331,7 @@ export default function App() {
   const handleFinalSubmit = async () => {
     setIsSubmitting(true);
     const formData = new FormData();
-    formData.append('lotteryId', lotteryData._id || '');
+    formData.append('lotteryId', lotteryData._id || '65e48f12a1b2c3d4e5f67890');
     formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
     formData.append('phoneNumber', phoneNumber);
