@@ -129,7 +129,11 @@ export default function App() {
             title: lotteryData.title,
             date: new Date(t.createdAt).toLocaleDateString('en-US'),
             status: t.status,
-            statusText: t.status === 'APPROVED' ? 'Approved by Admin' : t.status === 'REJECTED' ? 'Payment Rejected' : 'Waiting for admin payment approval',
+            statusText: t.status === 'APPROVED' 
+              ? '✅ Approved by Admin' 
+              : t.status === 'REJECTED' 
+              ? '❌ Payment Rejected' 
+              : '⌛ Waiting for admin payment approval',
             imageUrl: lotteryData.imageUrl
           }));
           setUserTickets(mappedTickets);
@@ -277,7 +281,7 @@ export default function App() {
             title: lotteryData.title,
             date: new Date(t.createdAt).toLocaleDateString('en-US'),
             status: t.status,
-            statusText: t.status === 'APPROVED' ? 'Approved by Admin' : t.status === 'REJECTED' ? 'Payment Rejected' : 'Waiting for admin payment approval',
+            statusText: t.status === 'APPROVED' ? '✅ Approved by Admin' : t.status === 'REJECTED' ? '❌ Payment Rejected' : '⌛ Waiting for admin payment approval',
             imageUrl: lotteryData.imageUrl
           }));
           setUserTickets(mappedTickets);
@@ -334,7 +338,6 @@ export default function App() {
     formData.append('lotteryId', lotteryData._id || '65e48f12a1b2c3d4e5f67890');
     formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
-    // Fixed phone validation error by supplying fallback string values if empty
     formData.append('phoneNumber', phoneNumber || savedPhoneInput || '+251900000000');
     formData.append('selectedNumbers', JSON.stringify(selectedNumbers));
     formData.append('isQuickPick', isQuickPick);
@@ -368,7 +371,7 @@ export default function App() {
         title: lotteryData.title,
         date: new Date().toLocaleDateString('en-US'),
         status: 'PENDING REVIEW',
-        statusText: 'Waiting for admin payment approval',
+        statusText: '⌛ Waiting for admin payment approval',
         imageUrl: lotteryData.imageUrl
       };
       setUserTickets([newTicket, ...userTickets]);
@@ -722,7 +725,7 @@ export default function App() {
 
           <div className="pt-2 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 tracking-wider uppercase">
-              <Clock className="w-3.5 h-3.5" /> PENDING TICKETS
+              <Clock className="w-3.5 h-3.5" /> ALL SUBMITTED TICKETS
             </div>
 
             {userTickets.length === 0 ? (
@@ -741,15 +744,15 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col items-end gap-1">
-                      <div className="p-2 bg-amber-500/10 rounded-full border border-amber-500/30 text-amber-400">
+                      <div className={`p-2 rounded-full border ${ticket.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'}`}>
                         <Clock className="w-4 h-4" />
                       </div>
-                      <span className="text-[10px] font-bold text-amber-400">{ticket.status}</span>
+                      <span className={`text-[10px] font-bold ${ticket.status === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'}`}>{ticket.status}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 text-xs text-gray-400 pt-2 border-t border-gray-800/60">
-                    <span>⌛</span>
+                    <span>{ticket.status === 'APPROVED' ? '✅' : '⌛'}</span>
                     <span>{ticket.statusText}</span>
                   </div>
                 </div>
