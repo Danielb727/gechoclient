@@ -71,6 +71,7 @@ export default function App() {
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
 
+  // Load user data from Telegram WebApp and fetch stored profile from MongoDB
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const tg = window.Telegram.WebApp;
@@ -80,6 +81,7 @@ export default function App() {
         const tId = String(user.id);
         setTelegramId(tId);
         setCustomerId('_' + tId.slice(-7).toUpperCase());
+        if (user.first_name) setFullName(user.first_name);
 
         fetch(`${API_URL}/api/users/${tId}`)
           .then(res => res.json())
@@ -89,8 +91,8 @@ export default function App() {
                 setPhoneNumber(data.user.phoneNumber);
                 setSavedPhoneInput(data.user.phoneNumber);
               }
-              if (data.user.firstName && !fullName) {
-                setFullName(data.user.firstName);
+              if (data.user.fullName || data.user.firstName) {
+                setFullName(data.user.fullName || data.user.firstName);
               }
             }
           })
@@ -323,7 +325,7 @@ export default function App() {
     setCheckoutStep(1);
   };
 
-  // Sync profile data to DB when moving past Step 1 of checkout
+  // Sync profile and save to MongoDB permanently when moving past Step 1 or saving in Profile tab
   const handleSaveProfileAndContinue = async () => {
     if (!fullName.trim() || !phoneNumber.trim()) return;
 
@@ -347,7 +349,7 @@ export default function App() {
     formData.append('lotteryId', lotteryData._id || '65e48f12a1b2c3d4e5f67890');
     formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
-    formData.append('phoneNumber', phoneNumber);
+    formData.append('phoneNumber', phoneNumber || savedPhoneInput);
     formData.append('selectedNumbers', JSON.stringify(selectedNumbers));
     formData.append('isQuickPick', isQuickPick);
     formData.append('ticketCount', ticketCount);
@@ -399,6 +401,7 @@ export default function App() {
   };
 
   const handleSavePhone = async () => {
+    setPhoneNumber(savedPhoneInput);
     setIsSavedToast(true);
     setTimeout(() => setIsSavedToast(false), 2500);
 
@@ -407,7 +410,7 @@ export default function App() {
         await fetch(`${API_URL}/api/users/${telegramId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber, fullName })
+          body: JSON.stringify({ phoneNumber: savedPhoneInput, fullName })
         });
       } catch (e) {
         console.error('Failed to update phone on backend', e);
@@ -594,6 +597,7 @@ export default function App() {
                 onClick={() => setCurrentScreen('buy')}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-95 transition text-black font-bold text-base py-3.5 px-5 rounded-2xl shadow-lg flex items-center justify-center gap-2"
               >
+                <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">4</span>
                 <span>Buy Ticket</span>
               </button>
             </div>
@@ -671,7 +675,7 @@ export default function App() {
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center font-bold text-amber-400 text-sm">
-                🎯
+                5
               </div>
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
                 <Target className="w-4 h-4" /> Select your lucky numbers ({selectedNumbers.length}/{ticketCount})
@@ -696,6 +700,7 @@ export default function App() {
                 selectedNumbers.length === ticketCount ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg' : 'bg-gray-800 text-gray-500 cursor-not-allowed'
               }`}
             >
+              <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">7</span>
               <span>Buy Ticket ({selectedNumbers.length}/{ticketCount})</span>
             </button>
           </div>
@@ -811,8 +816,8 @@ export default function App() {
             <label className="block text-xs font-semibold text-gray-300">Update your phone number</label>
             <input 
               type="text" 
-              value={phoneNumber} 
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              value={savedPhoneInput} 
+              onChange={(e) => setSavedPhoneInput(e.target.value)}
               placeholder="+251..."
               className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500" 
             />
@@ -849,6 +854,12 @@ export default function App() {
               </button>
             </div>
 
+            <div className="flex items-center gap-4 text-xs mb-3 font-semibold">
+              <span className="text-amber-400">🟡 Selected</span>
+              <span className="text-red-500">🔴 Taken</span>
+              <span className="text-gray-400">⬛ Free</span>
+            </div>
+
             <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-7 gap-1.5 my-2 max-h-[50vh]">
               {Array.from({ length: 4000 }, (_, i) => i + 1).map((num) => {
                 const numericNum = Number(num);
@@ -874,6 +885,15 @@ export default function App() {
             </div>
 
             <div className="pt-3 border-t border-gray-800 space-y-2">
+              <div className="flex justify-between items-center px-1 text-sm font-semibold">
+                <span className="text-gray-400">
+                  {selectedNumbers.length} × {lotteryData.ticketPrice.toLocaleString()} Birr
+                </span>
+                <span className="text-white font-bold">
+                  {(selectedNumbers.length * lotteryData.ticketPrice).toLocaleString()} Birr
+                </span>
+              </div>
+
               <button
                 disabled={selectedNumbers.length !== ticketCount}
                 onClick={() => setIsNumberPickerOpen(false)}
@@ -883,6 +903,7 @@ export default function App() {
                     : 'bg-emerald-900/40 text-emerald-300/40 cursor-not-allowed'
                 }`}
               >
+                <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">6</span>
                 <span>{selectedNumbers.length === ticketCount ? 'Done' : `Select ${ticketCount - selectedNumbers.length} more number(s)`}</span>
               </button>
             </div>
@@ -890,7 +911,7 @@ export default function App() {
         </div>
       )}
 
-      {/* CHECKOUT FLOW MODALS WITH EDITABLE PHONE NUMBER */}
+      {/* CHECKOUT FLOW MODALS */}
       {checkoutStep > 0 && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
@@ -930,7 +951,11 @@ export default function App() {
                         </span>
                       ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="inline-block bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-semibold px-3 py-1 rounded-full">
+                      Random numbers will be assigned
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -949,7 +974,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number (Insert your number)</label>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number (Editable & Saved)</label>
                     <div className="relative flex items-center">
                       <Phone className="absolute left-3.5 w-4 h-4 text-gray-400" />
                       <input 
@@ -970,6 +995,7 @@ export default function App() {
                     fullName.trim() && phoneNumber.trim() ? 'bg-amber-500 text-black hover:bg-amber-400 cursor-pointer shadow-lg' : 'bg-amber-500/50 text-black/50 cursor-not-allowed'
                   }`}
                 >
+                  <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">8</span>
                   <span>Continue</span>
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -1041,6 +1067,7 @@ export default function App() {
                         <Upload className="w-5 h-5" />
                       </div>
                       <p className="text-xs font-bold text-white">Tap to upload your payment receipt</p>
+                      <p className="text-[10px] text-gray-400">PNG or JPG up to 10MB</p>
                     </div>
                   )}
                 </div>
@@ -1067,6 +1094,7 @@ export default function App() {
                     onClick={() => setCheckoutStep(3)}
                     className="py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm flex items-center justify-center gap-2"
                   >
+                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">9</span>
                     <span>Continue &gt;</span>
                   </button>
                 </div>
@@ -1093,33 +1121,79 @@ export default function App() {
 
                 <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 space-y-2.5 text-xs">
                   <h4 className="text-sm font-bold text-white mb-2">Order Summary</h4>
+                  
                   <div className="flex justify-between">
+                    <span className="text-gray-400">Item</span>
+                    <span className="font-bold text-white">{lotteryData.title}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Tickets</span>
+                    <span className="font-bold text-white">{ticketCount} × {lotteryData.ticketPrice.toLocaleString()} Birr</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-gray-400 block">Ticket Numbers</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {selectedNumbers.map(n => (
+                        <span key={n} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px] font-mono">
+                          #{padNumber(n)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-1">
                     <span className="text-gray-400">Full Name</span>
                     <span className="font-bold text-white">{fullName}</span>
                   </div>
+
                   <div className="flex justify-between">
                     <span className="text-gray-400">Phone Number</span>
                     <span className="font-bold text-white">{phoneNumber}</span>
                   </div>
+
+                  {senderAccount && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Sent from account number (optional)</span>
+                      <span className="font-bold text-white font-mono">{senderAccount}</span>
+                    </div>
+                  )}
+
                   <div className="flex justify-between pt-2 border-t border-gray-800 text-sm">
                     <span className="text-gray-300 font-semibold">Total</span>
                     <span className="font-black text-amber-400 text-base">{totalPrice.toLocaleString()} Birr</span>
                   </div>
                 </div>
 
+                {receiptImage && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-300">Uploaded payment receipt</p>
+                    <div className="rounded-2xl overflow-hidden border-2 border-emerald-500/80 p-1 bg-[#121e14]">
+                      <img src={receiptImage} alt="Receipt preview" className="w-full h-36 object-cover rounded-xl" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-300">Your tickets will be reviewed and confirmed within 24 hours.</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <button 
                     onClick={() => setCheckoutStep(2)}
-                    className="py-3.5 bg-[#162218] text-white font-bold rounded-2xl text-sm"
+                    className="py-3.5 bg-[#162218] hover:bg-[#1e2e21] text-white font-bold rounded-2xl text-sm"
                   >
                     Back
                   </button>
                   <button 
                     disabled={isSubmitting}
                     onClick={handleFinalSubmit}
-                    className="py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm"
+                    className="py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm flex items-center justify-center gap-2"
                   >
-                    {isSubmitting ? 'Submitting...' : 'Submit Order'}
+                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">10</span>
+                    <span>{isSubmitting ? 'Submitting...' : 'Submit Order'}</span>
                   </button>
                 </div>
               </>
@@ -1127,15 +1201,32 @@ export default function App() {
 
             {checkoutStep === 4 && (
               <div className="py-4 text-center space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-white text-left">Order submitted</h3>
+                    <p className="text-xs text-gray-400 text-left">Step 3 of 3</p>
+                  </div>
+                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                </div>
+
                 <div className="py-6 flex flex-col items-center justify-center space-y-3">
                   <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
                     <Check className="w-10 h-10 text-white stroke-[3]" />
                   </div>
                   <h3 className="text-2xl font-bold text-white">Order Sent!</h3>
                   <p className="text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
-                    Order <span className="text-gray-200 font-mono font-bold">#{submittedOrderId}</span> was sent successfully.
+                    Order <span className="text-gray-200 font-mono font-bold">#{submittedOrderId}</span> was sent successfully. Payment confirmation may take up to 24 hours.
                   </p>
                 </div>
+
                 <button 
                   onClick={() => {
                     resetOrder();
@@ -1143,7 +1234,7 @@ export default function App() {
                   }}
                   className="w-full py-4 bg-[#b5e054] hover:bg-[#a3cb49] text-black font-bold rounded-2xl text-sm transition"
                 >
-                  View My Tickets
+                  Close
                 </button>
               </div>
             )}
