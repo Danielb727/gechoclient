@@ -62,7 +62,6 @@ export default function App() {
 
   const lotteryData = lotteries.length > 0 ? lotteries[0] : fallbackLottery;
   
-  // COMBINED TAKEN NUMBERS SOURCE (Lottery takenNumbers + Live Approved Tickets scan)
   const lotteryTaken = (lotteryData.takenNumbers || []).map(n => Number(n));
   const takenNumbers = Array.from(new Set([...lotteryTaken, ...allApprovedNumbers]));
 
@@ -75,7 +74,6 @@ export default function App() {
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
 
-  // Fetch approved tickets across the system to instantly lock out sold numbers
   const fetchGlobalTakenNumbers = () => {
     fetch(`${API_URL}/api/admin/tickets`)
       .then(res => res.json())
@@ -280,6 +278,22 @@ export default function App() {
       }
     } catch (err) {
       console.error('Error updating lottery:', err);
+    }
+  };
+
+  const handleDeleteLottery = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this car lottery?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/lotteries/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('🗑️ Car lottery deleted successfully!');
+        fetchLotteries();
+      }
+    } catch (err) {
+      console.error('Error deleting lottery:', err);
     }
   };
 
@@ -505,6 +519,7 @@ export default function App() {
           onReject={handleReject}
           onAddLottery={handleAddLottery}
           onUpdateLottery={handleUpdateLottery}
+          onDeleteLottery={handleDeleteLottery}
           apiUrl={API_URL}
         />
       </div>
@@ -899,7 +914,6 @@ export default function App() {
         </main>
       )}
 
-      {/* NUMBER PICKER MODAL */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
@@ -961,7 +975,6 @@ export default function App() {
         </div>
       )}
 
-      {/* CHECKOUT FLOW MODALS */}
       {checkoutStep > 0 && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
