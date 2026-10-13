@@ -233,7 +233,7 @@ export default function App() {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
       fetchAdminTickets();
-      fetchLotteries(); // Refresh lottery details so takenNumbers update immediately
+      fetchLotteries(); 
     } catch (err) {
       console.error('Error approving ticket:', err);
     }
@@ -270,13 +270,20 @@ export default function App() {
       .catch(err => console.log('Using local user tickets state'));
   };
 
+  // 🔄 MULTI-CARD SELECTION LOGIC: Allows selecting up to ticketCount numbers
   const toggleNumber = (num) => {
-    if (takenNumbers.includes(num)) return;
-    if (selectedNumbers.includes(num)) {
-      setSelectedNumbers(selectedNumbers.filter(n => n !== num));
+    const numericNum = Number(num);
+    const formattedTaken = takenNumbers.map(n => Number(n));
+    if (formattedTaken.includes(numericNum)) return;
+
+    if (selectedNumbers.includes(numericNum)) {
+      setSelectedNumbers(selectedNumbers.filter(n => n !== numericNum));
     } else {
       if (selectedNumbers.length < ticketCount) {
-        setSelectedNumbers([...selectedNumbers, num]);
+        setSelectedNumbers([...selectedNumbers, numericNum]);
+      } else {
+        // If user already reached ticketCount, replace the first selected or alert
+        alert(`You have selected maximum tickets (${ticketCount}) for this purchase. Change quantity above to pick more.`);
       }
     }
   };
@@ -304,10 +311,18 @@ export default function App() {
   const handleQuickPick = () => {
     fetchLotteries();
     setIsQuickPick(true);
-    setTicketCount(1);
-    const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !takenNumbers.includes(n));
-    const randomPick = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
-    setSelectedNumbers([randomPick]);
+    const formattedTaken = takenNumbers.map(n => Number(n));
+    const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !formattedTaken.includes(n));
+    
+    // Pick random numbers matching the ticketCount
+    const picks = [];
+    for (let i = 0; i < ticketCount; i++) {
+      if (availableNumbers.length === 0) break;
+      const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+      picks.push(availableNumbers.splice(randomIndex, 1)[0]);
+    }
+    
+    setSelectedNumbers(picks);
     setCheckoutStep(1);
   };
 
@@ -598,11 +613,23 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 bg-[#162017] border border-gray-800 rounded-2xl p-1.5">
-              <button onClick={() => setTicketCount(Math.max(1, ticketCount - 1))} className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center">
+              <button 
+                onClick={() => {
+                  const newCount = Math.max(1, ticketCount - 1);
+                  setTicketCount(newCount);
+                  if (selectedNumbers.length > newCount) {
+                    setSelectedNumbers(selectedNumbers.slice(0, newCount));
+                  }
+                }} 
+                className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center"
+              >
                 <Minus className="w-4 h-4" />
               </button>
               <span className="text-lg font-bold w-6 text-center">{ticketCount}</span>
-              <button onClick={() => setTicketCount(ticketCount + 1)} className="w-9 h-9 rounded-xl bg-amber-500 text-black font-bold flex items-center justify-center">
+              <button 
+                onClick={() => setTicketCount(ticketCount + 1)} 
+                className="w-9 h-9 rounded-xl bg-amber-500 text-black font-bold flex items-center justify-center"
+              >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -610,7 +637,7 @@ export default function App() {
 
           {selectedNumbers.length > 0 && !isQuickPick && (
             <div className="flex items-center gap-2 text-xs text-gray-300">
-              <span>Selected numbers:</span>
+              <span>Selected numbers ({selectedNumbers.length}/{ticketCount}):</span>
               <div className="flex gap-1 flex-wrap">
                 {selectedNumbers.map(num => (
                   <span key={num} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded-lg text-xs">
@@ -635,7 +662,7 @@ export default function App() {
                 5
               </div>
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <Target className="w-4 h-4" /> Select your lucky numbers
+                <Target className="w-4 h-4" /> Select your lucky numbers ({selectedNumbers.length}/{ticketCount})
               </div>
             </div>
           </button>
@@ -648,17 +675,17 @@ export default function App() {
               <Zap className="w-4 h-4 fill-black" /> Quick Pick
             </button>
             <button 
-              disabled={selectedNumbers.length === 0}
+              disabled={selectedNumbers.length !== ticketCount}
               onClick={() => {
                 setIsQuickPick(false);
                 setCheckoutStep(1);
               }}
               className={`py-3.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition ${
-                selectedNumbers.length > 0 ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg' : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                selectedNumbers.length === ticketCount ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg' : 'bg-gray-800 text-gray-500 cursor-not-allowed'
               }`}
             >
               <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">7</span>
-              <span>Buy Ticket</span>
+              <span>Buy Ticket ({selectedNumbers.length}/{ticketCount})</span>
             </button>
           </div>
         </main>
@@ -797,14 +824,14 @@ export default function App() {
         </main>
       )}
 
-      {/* MODAL 1: NUMBER PICKER MODAL */}
+      {/* MODAL 1: NUMBER PICKER MODAL (TYPE-SAFE TAKEN CHECK & MULTI-SELECT) */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h3 className="text-lg font-bold text-white">Select your lucky numbers</h3>
-                <p className="text-xs text-gray-400">{selectedNumbers.length}/{ticketCount} selected</p>
+                <p className="text-xs text-amber-400 font-semibold">{selectedNumbers.length} of {ticketCount} numbers selected</p>
               </div>
               <button onClick={() => setIsNumberPickerOpen(false)} className="p-1.5 bg-[#1a261c] rounded-full text-gray-400">
                 <X className="w-5 h-5" />
@@ -819,10 +846,11 @@ export default function App() {
 
             <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-7 gap-1.5 my-2 max-h-[50vh]">
               {Array.from({ length: 4000 }, (_, i) => i + 1).map((num) => {
-                const isTaken = takenNumbers.includes(num);
-                const isSelected = selectedNumbers.includes(num);
+                const numericNum = Number(num);
+                const formattedTaken = takenNumbers.map(n => Number(n));
+                const isTaken = formattedTaken.includes(numericNum);
+                const isSelected = selectedNumbers.includes(numericNum);
 
-                // 🔒 LOCKED CARDS: Dark red styling and disabled interaction
                 let cls = "bg-black text-white border-gray-800 hover:border-amber-500/50";
                 if (isTaken) cls = "bg-red-950/60 text-red-400/80 border-red-900/60 cursor-not-allowed opacity-60";
                 if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
@@ -831,10 +859,10 @@ export default function App() {
                   <button
                     key={num}
                     disabled={isTaken}
-                    onClick={() => toggleNumber(num)}
+                    onClick={() => toggleNumber(numericNum)}
                     className={`h-9 border rounded-xl flex items-center justify-center text-[11px] font-mono transition ${cls}`}
                   >
-                    {padNumber(num)}
+                    {padNumber(numericNum)}
                   </button>
                 );
               })}
@@ -843,24 +871,24 @@ export default function App() {
             <div className="pt-3 border-t border-gray-800 space-y-2">
               <div className="flex justify-between items-center px-1 text-sm font-semibold">
                 <span className="text-gray-400">
-                  {selectedNumbers.length || ticketCount} × {lotteryData.ticketPrice.toLocaleString()} Birr
+                  {selectedNumbers.length} × {lotteryData.ticketPrice.toLocaleString()} Birr
                 </span>
                 <span className="text-white font-bold">
-                  {((selectedNumbers.length || ticketCount) * lotteryData.ticketPrice).toLocaleString()} Birr
+                  {(selectedNumbers.length * lotteryData.ticketPrice).toLocaleString()} Birr
                 </span>
               </div>
 
               <button
-                disabled={selectedNumbers.length === 0}
+                disabled={selectedNumbers.length !== ticketCount}
                 onClick={() => setIsNumberPickerOpen(false)}
                 className={`w-full py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 text-base transition ${
-                  selectedNumbers.length > 0
+                  selectedNumbers.length === ticketCount
                     ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg'
                     : 'bg-emerald-900/40 text-emerald-300/40 cursor-not-allowed'
                 }`}
               >
                 <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">6</span>
-                <span>Done</span>
+                <span>{selectedNumbers.length === ticketCount ? 'Done' : `Select ${ticketCount - selectedNumbers.length} more number(s)`}</span>
               </button>
             </div>
           </div>
@@ -900,10 +928,10 @@ export default function App() {
                       Random numbers will be assigned
                     </div>
                   ) : selectedNumbers.length > 0 ? (
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
                       {selectedNumbers.map(num => (
-                        <span key={num} className="bg-amber-500 text-black font-bold text-xs px-2 py-0.5 rounded-md">
-                          #{num}
+                        <span key={num} className="bg-amber-500 text-black font-bold text-xs px-2 py-0.5 rounded-md font-mono">
+                          #{padNumber(num)}
                         </span>
                       ))}
                     </div>
@@ -1090,21 +1118,11 @@ export default function App() {
                   <div className="space-y-1">
                     <span className="text-gray-400 block">Ticket Numbers</span>
                     <div className="flex gap-1 flex-wrap">
-                      {isQuickPick ? (
-                        <span className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px]">
-                          #{selectedNumbers[0]}
+                      {selectedNumbers.map(n => (
+                        <span key={n} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px] font-mono">
+                          #{padNumber(n)}
                         </span>
-                      ) : selectedNumbers.length > 0 ? (
-                        selectedNumbers.map(n => (
-                          <span key={n} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px]">
-                            #{n}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px]">
-                          Random
-                        </span>
-                      )}
+                      ))}
                     </div>
                   </div>
 
