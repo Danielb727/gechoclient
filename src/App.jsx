@@ -60,7 +60,9 @@ export default function App() {
   };
 
   const lotteryData = lotteries.length > 0 ? lotteries[0] : fallbackLottery;
-  const takenNumbers = lotteryData.takenNumbers || [];
+  
+  // FIX 1: Robustly parse taken numbers from database (handling string or number arrays safely)
+  const takenNumbers = (lotteryData.takenNumbers || []).map(n => Number(n));
 
   const bankAccounts = [
     { name: 'Tele Birr', holder: 'Getachew Fikadu Jirata', account: '0999972486' },
@@ -71,7 +73,6 @@ export default function App() {
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
 
-  // 🔄 BULLETPROOF PERSISTENCE & TELEGRAM ID DETECTION
   useEffect(() => {
     let resolvedId = telegramId;
 
@@ -95,7 +96,6 @@ export default function App() {
       }
     }
 
-    // If we have a resolved Telegram ID, fetch from backend DB to sync latest state
     if (resolvedId) {
       fetch(`${API_URL}/api/users/${resolvedId}`)
         .then(res => res.json())
@@ -117,7 +117,6 @@ export default function App() {
     }
   }, []);
 
-  // Fetch user tickets using both Telegram ID and Phone number guarantees
   useEffect(() => {
     if (!telegramId && !phoneNumber) return;
     const queryParam = telegramId 
@@ -289,18 +288,23 @@ export default function App() {
       .catch(err => console.log('Using local user tickets state'));
   };
 
+  // FIX 2: Multi-ticket selection logic allowing selecting multiple unique numbers matching ticketCount
   const toggleNumber = (num) => {
     const numericNum = Number(num);
-    const formattedTaken = takenNumbers.map(n => Number(n));
-    if (formattedTaken.includes(numericNum)) return;
+    
+    // Block selecting already taken numbers
+    if (takenNumbers.includes(numericNum)) return;
 
     if (selectedNumbers.includes(numericNum)) {
+      // Deselect if already chosen
       setSelectedNumbers(selectedNumbers.filter(n => n !== numericNum));
     } else {
+      // If we haven't reached the target ticketCount yet, add it
       if (selectedNumbers.length < ticketCount) {
         setSelectedNumbers([...selectedNumbers, numericNum]);
       } else {
-        alert(`You have selected maximum tickets (${ticketCount}) for this purchase. Change quantity above to pick more.`);
+        // If limit reached, replace the first selected number with the new one for convenience
+        setSelectedNumbers([...selectedNumbers.slice(1), numericNum]);
       }
     }
   };
@@ -328,8 +332,7 @@ export default function App() {
   const handleQuickPick = () => {
     fetchLotteries();
     setIsQuickPick(true);
-    const formattedTaken = takenNumbers.map(n => Number(n));
-    const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !formattedTaken.includes(n));
+    const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !takenNumbers.includes(n));
     
     const picks = [];
     for (let i = 0; i < ticketCount; i++) {
@@ -342,7 +345,6 @@ export default function App() {
     setCheckoutStep(1);
   };
 
-  // Save profile to localStorage and MongoDB permanently
   const handleSaveProfileAndContinue = async () => {
     if (!fullName.trim() || !phoneNumber.trim()) return;
 
@@ -699,7 +701,7 @@ export default function App() {
                 🎯
               </div>
               <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <Target className="w-4 h-4" /> Select your lucky numbers ({selectedNumbers.length}/{ticketCount})
+                <Target className="w-4 h-4" /> Select your {ticketCount} lucky number(s) ({selectedNumbers.length}/{ticketCount})
               </div>
             </div>
           </button>
@@ -860,7 +862,7 @@ export default function App() {
         </main>
       )}
 
-      {/* NUMBER PICKER MODAL */}
+      {/* NUMBER PICKER MODAL - STRICTLY DISABLED FOR TAKEN NUMBERS & MULTI-TICKET SUPPORT */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
@@ -874,15 +876,19 @@ export default function App() {
               </button>
             </div>
 
+            <div className="flex items-center gap-3 text-[11px] mb-2 font-semibold text-gray-300">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Selected</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-950 border border-red-800 inline-block"></span> Taken / Sold</span>
+            </div>
+
             <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-7 gap-1.5 my-2 max-h-[50vh]">
               {Array.from({ length: 4000 }, (_, i) => i + 1).map((num) => {
                 const numericNum = Number(num);
-                const formattedTaken = takenNumbers.map(n => Number(n));
-                const isTaken = formattedTaken.includes(numericNum);
+                const isTaken = takenNumbers.includes(numericNum);
                 const isSelected = selectedNumbers.includes(numericNum);
 
                 let cls = "bg-black text-white border-gray-800 hover:border-amber-500/50";
-                if (isTaken) cls = "bg-red-950/60 text-red-400/80 border-red-900/60 cursor-not-allowed opacity-60";
+                if (isTaken) cls = "bg-red-950/80 text-red-400/50 border-red-900/40 cursor-not-allowed opacity-50";
                 if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
 
                 return (
@@ -908,14 +914,14 @@ export default function App() {
                     : 'bg-emerald-900/40 text-emerald-300/40 cursor-not-allowed'
                 }`}
               >
-                <span>{selectedNumbers.length === ticketCount ? 'Done' : `Select ${ticketCount - selectedNumbers.length} more number(s)`}</span>
+                <span>{selectedNumbers.length === ticketCount ? 'Done ✓' : `Select ${ticketCount - selectedNumbers.length} more number(s)`}</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CHECKOUT FLOW MODALS WITH PERSISTENT STORAGE */}
+      {/* CHECKOUT FLOW MODALS */}
       {checkoutStep > 0 && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
@@ -942,6 +948,15 @@ export default function App() {
                   <h4 className="text-lg font-bold text-white">{lotteryData.title}</h4>
                   <p className="text-xs text-gray-400">{ticketCount} tickets × {lotteryData.ticketPrice.toLocaleString()} Birr</p>
                   <div className="text-2xl font-black text-amber-400">{totalPrice.toLocaleString()} Birr</div>
+                  
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <span className="text-xs text-gray-400 mr-1">Selected numbers:</span>
+                    {selectedNumbers.map(num => (
+                      <span key={num} className="bg-amber-500 text-black font-bold text-xs px-2 py-0.5 rounded-md font-mono">
+                        #{padNumber(num)}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -1111,6 +1126,10 @@ export default function App() {
                   <div className="flex justify-between">
                     <span className="text-gray-400">Phone Number</span>
                     <span className="font-bold text-white">{phoneNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Selected Tickets ({selectedNumbers.length})</span>
+                    <span className="font-bold text-amber-400 font-mono">{selectedNumbers.map(n => `#${padNumber(n)}`).join(', ')}</span>
                   </div>
                   <div className="flex justify-between pt-2 border-t border-gray-800 text-sm">
                     <span className="text-gray-300 font-semibold">Total</span>
