@@ -25,6 +25,7 @@ export default function App() {
   const [isQuickPick, setIsQuickPick] = useState(false);
 
   const [lotteries, setLotteries] = useState([]);
+  const [allApprovedNumbers, setAllApprovedNumbers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [fullName, setFullName] = useState(() => localStorage.getItem('gech_fullname') || '');
@@ -61,8 +62,9 @@ export default function App() {
 
   const lotteryData = lotteries.length > 0 ? lotteries[0] : fallbackLottery;
   
-  // FIX 1: Robustly parse taken numbers from database (handling string or number arrays safely)
-  const takenNumbers = (lotteryData.takenNumbers || []).map(n => Number(n));
+  // COMBINED TAKEN NUMBERS SOURCE (Lottery takenNumbers + Live Approved Tickets scan)
+  const lotteryTaken = (lotteryData.takenNumbers || []).map(n => Number(n));
+  const takenNumbers = Array.from(new Set([...lotteryTaken, ...allApprovedNumbers]));
 
   const bankAccounts = [
     { name: 'Tele Birr', holder: 'Getachew Fikadu Jirata', account: '0999972486' },
@@ -72,6 +74,24 @@ export default function App() {
   ];
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
+
+  // Fetch approved tickets across the system to instantly lock out sold numbers
+  const fetchGlobalTakenNumbers = () => {
+    fetch(`${API_URL}/api/admin/tickets`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.tickets) {
+          const approvedNums = [];
+          data.tickets.forEach(t => {
+            if (t.status === 'APPROVED' && t.selectedNumbers) {
+              t.selectedNumbers.forEach(n => approvedNums.push(Number(n)));
+            }
+          });
+          setAllApprovedNumbers(approvedNums);
+        }
+      })
+      .catch(err => console.log('Error fetching global taken numbers'));
+  };
 
   useEffect(() => {
     let resolvedId = telegramId;
@@ -115,6 +135,9 @@ export default function App() {
         })
         .catch(err => console.log('Using local cached profile data'));
     }
+
+    fetchLotteries();
+    fetchGlobalTakenNumbers();
   }, []);
 
   useEffect(() => {
@@ -214,10 +237,6 @@ export default function App() {
       .catch(err => console.log('Using local fallback lottery data'));
   };
 
-  useEffect(() => {
-    fetchLotteries();
-  }, []);
-
   const fetchAdminTickets = async () => {
     try {
       const res = await fetch(`${API_URL}/api/admin/tickets`);
@@ -251,7 +270,8 @@ export default function App() {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
       fetchAdminTickets();
-      fetchLotteries(); 
+      fetchLotteries();
+      fetchGlobalTakenNumbers();
     } catch (err) {
       console.error('Error approving ticket:', err);
     }
@@ -288,22 +308,18 @@ export default function App() {
       .catch(err => console.log('Using local user tickets state'));
   };
 
-  // FIX 2: Multi-ticket selection logic allowing selecting multiple unique numbers matching ticketCount
   const toggleNumber = (num) => {
     const numericNum = Number(num);
     
-    // Block selecting already taken numbers
+    // STRICT BLOCK: If number is taken or sold, do nothing
     if (takenNumbers.includes(numericNum)) return;
 
     if (selectedNumbers.includes(numericNum)) {
-      // Deselect if already chosen
       setSelectedNumbers(selectedNumbers.filter(n => n !== numericNum));
     } else {
-      // If we haven't reached the target ticketCount yet, add it
       if (selectedNumbers.length < ticketCount) {
         setSelectedNumbers([...selectedNumbers, numericNum]);
       } else {
-        // If limit reached, replace the first selected number with the new one for convenience
         setSelectedNumbers([...selectedNumbers.slice(1), numericNum]);
       }
     }
@@ -331,6 +347,7 @@ export default function App() {
 
   const handleQuickPick = () => {
     fetchLotteries();
+    fetchGlobalTakenNumbers();
     setIsQuickPick(true);
     const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !takenNumbers.includes(n));
     
@@ -410,6 +427,7 @@ export default function App() {
       setUserTickets([newTicket, ...userTickets]);
       setCheckoutStep(4);
       fetchLotteries();
+      fetchGlobalTakenNumbers();
     }
   };
 
@@ -479,7 +497,7 @@ export default function App() {
   const pendingCount = userTickets.filter(t => t.status === 'PENDING REVIEW').length;
   const totalCount = userTickets.length;
 
-  const soldCount = lotteryData.soldTickets || 0;
+  const soldCount = Math.max(lotteryData.soldTickets || 0, takenNumbers.length);
   const totalTickets = lotteryData.totalTickets || 4000;
   const fillPercentage = Math.round((soldCount / totalTickets) * 100);
 
@@ -692,6 +710,7 @@ export default function App() {
             onClick={() => {
               setIsQuickPick(false);
               fetchLotteries();
+              fetchGlobalTakenNumbers();
               setIsNumberPickerOpen(true);
             }}
             className="w-full bg-[#162017] border border-amber-500/60 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 transition"
@@ -862,7 +881,7 @@ export default function App() {
         </main>
       )}
 
-      {/* NUMBER PICKER MODAL - STRICTLY DISABLED FOR TAKEN NUMBERS & MULTI-TICKET SUPPORT */}
+      {/* NUMBER PICKER MODAL - STRICT RED COLORING & DISABLE FOR TAKEN NUMBERS */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
@@ -878,7 +897,7 @@ export default function App() {
 
             <div className="flex items-center gap-3 text-[11px] mb-2 font-semibold text-gray-300">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Selected</span>
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-950 border border-red-800 inline-block"></span> Taken / Sold</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span> Taken / Sold</span>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-7 gap-1.5 my-2 max-h-[50vh]">
@@ -888,8 +907,11 @@ export default function App() {
                 const isSelected = selectedNumbers.includes(numericNum);
 
                 let cls = "bg-black text-white border-gray-800 hover:border-amber-500/50";
-                if (isTaken) cls = "bg-red-950/80 text-red-400/50 border-red-900/40 cursor-not-allowed opacity-50";
-                if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
+                if (isTaken) {
+                  cls = "bg-red-600 text-white border-red-500 font-bold cursor-not-allowed opacity-90 shadow-md";
+                } else if (isSelected) {
+                  cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
+                }
 
                 return (
                   <button
