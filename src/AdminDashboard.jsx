@@ -1,8 +1,18 @@
 import React, { useState } from 'react';
-import { Plus, X, Car, Clock, FileText, User, Phone, CreditCard } from 'lucide-react';
+import { Plus, X, Car, Clock, User, Phone, CreditCard, Edit3 } from 'lucide-react';
 
-export default function AdminDashboard({ tickets = [], onApprove, onReject, onAddLottery, apiUrl = 'http://localhost:5000' }) {
+export default function AdminDashboard({ 
+  tickets = [], 
+  lotteries = [], 
+  onApprove, 
+  onReject, 
+  onAddLottery, 
+  onUpdateLottery, 
+  apiUrl = 'http://localhost:5000' 
+}) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingLottery, setEditingLottery] = useState(null);
+
   const [formData, setFormData] = useState({
     title: '',
     color: '',
@@ -13,10 +23,7 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
     isFeatured: true
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await onAddLottery(formData);
-    setIsAddModalOpen(false);
+  const handleOpenAddModal = () => {
     setFormData({ 
       title: '', 
       color: '', 
@@ -26,25 +33,93 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
       durationDays: 30, 
       isFeatured: true 
     });
+    setIsAddModalOpen(true);
+  };
+
+  const handleOpenEditModal = (lottery) => {
+    setEditingLottery(lottery);
+    setFormData({
+      title: lottery.title || '',
+      color: lottery.color || '',
+      imageUrl: lottery.imageUrl || '',
+      ticketPrice: lottery.ticketPrice || 6000,
+      totalTickets: lottery.totalTickets || 4000,
+      durationDays: lottery.durationDays || 30,
+      isFeatured: lottery.isFeatured !== undefined ? lottery.isFeatured : true
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (editingLottery) {
+      if (onUpdateLottery) {
+        await onUpdateLottery(editingLottery._id, formData);
+      }
+      setEditingLottery(null);
+    } else {
+      await onAddLottery(formData);
+      setIsAddModalOpen(false);
+    }
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto text-white">
+    <div className="p-4 max-w-4xl mx-auto text-white space-y-8">
       {/* Top Bar with Add Button */}
-      <div className="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+      <div className="flex justify-between items-center border-b border-gray-800 pb-4">
         <div>
           <h1 className="text-xl font-bold">Admin Management</h1>
-          <p className="text-xs text-gray-400">Manage pending orders and view payment receipts</p>
+          <p className="text-xs text-gray-400">Manage active lotteries, pending orders, and payment receipts</p>
         </div>
         <button 
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={handleOpenAddModal}
           className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs transition"
         >
           <Plus className="w-4 h-4" /> Add New Car Lottery
         </button>
       </div>
 
-      {/* Orders List Table */}
+      {/* SECTION 1: ACTIVE CAR LOTTERIES LIST */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-gray-300 flex items-center gap-2">
+          <Car className="w-4 h-4 text-amber-400" /> Active Car Lotteries ({lotteries.length})
+        </h3>
+
+        {lotteries.length === 0 ? (
+          <p className="text-xs text-gray-500 py-6 text-center bg-[#121e14] rounded-2xl border border-gray-800">
+            No active car lotteries found. Click above to add one.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {lotteries.map((lottery) => (
+              <div key={lottery._id} className="bg-[#121e14] border border-gray-800 rounded-2xl p-4 flex gap-3 items-center justify-between">
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <img 
+                    src={lottery.imageUrl} 
+                    alt={lottery.title} 
+                    className="w-16 h-16 object-cover rounded-xl border border-gray-800 shrink-0" 
+                  />
+                  <div className="truncate">
+                    <h4 className="text-sm font-bold text-amber-400 truncate">{lottery.title}</h4>
+                    <p className="text-xs text-gray-400">Color: {lottery.color}</p>
+                    <p className="text-xs text-gray-300 mt-1 font-semibold">
+                      {lottery.ticketPrice} Birr • {lottery.totalTickets} Tickets
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => handleOpenEditModal(lottery)}
+                  className="bg-amber-500/10 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-black p-2.5 rounded-xl text-xs flex items-center gap-1.5 font-bold transition shrink-0"
+                >
+                  <Edit3 className="w-4 h-4" /> Edit
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 2: PENDING ORDERS LIST */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-gray-300">
           Pending Orders ({tickets.filter(t => t.status === 'PENDING REVIEW').length})
@@ -154,15 +229,18 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
         )}
       </div>
 
-      {/* ADD CAR LOTTERY MODAL */}
-      {isAddModalOpen && (
+      {/* ADD / EDIT CAR LOTTERY MODAL */}
+      {(isAddModalOpen || editingLottery) && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#101811] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <h3 className="text-lg font-bold flex items-center gap-2 text-white">
-                <Car className="text-amber-400" /> Add New Car Lottery
+                <Car className="text-amber-400" /> {editingLottery ? 'Edit Car Lottery' : 'Add New Car Lottery'}
               </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-white">
+              <button 
+                onClick={() => { setIsAddModalOpen(false); setEditingLottery(null); }} 
+                className="text-gray-400 hover:text-white"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -246,7 +324,7 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
                 type="submit"
                 className="w-full py-3.5 bg-amber-500 text-black font-bold rounded-2xl mt-2 hover:bg-amber-400 text-sm transition"
               >
-                Save & Publish
+                {editingLottery ? 'Update & Save Changes' : 'Save & Publish'}
               </button>
             </form>
           </div>
