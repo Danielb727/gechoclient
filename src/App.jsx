@@ -6,37 +6,27 @@ import {
   Copy, Upload, AlertTriangle, Check, Search, Clock, ShieldCheck, Lock
 } from 'lucide-react';
 
-// API Base URL configuration pointing directly to your live Railway backend
 const API_URL = 'https://amiable-determination-production-c638.up.railway.app';
 
 export default function App() {
-  // Admin View & Authentication States
   const [isAdminView, setIsAdminView] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   
-  // Login Form Inputs
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   const [adminTickets, setAdminTickets] = useState([]);
 
-  // Navigation State
   const [currentScreen, setCurrentScreen] = useState('home'); 
   const [isNumberPickerOpen, setIsNumberPickerOpen] = useState(false);
-  
-  // Checkout Modal State Flow
   const [checkoutStep, setCheckoutStep] = useState(0);
-
-  // Quick Pick state flag
   const [isQuickPick, setIsQuickPick] = useState(false);
 
-  // Dynamic Lotteries Loaded from Backend
   const [lotteries, setLotteries] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // User & Profile State
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [savedPhoneInput, setSavedPhoneInput] = useState('');
@@ -44,7 +34,6 @@ export default function App() {
   const [telegramId, setTelegramId] = useState('');
   const [isSavedToast, setIsSavedToast] = useState(false);
 
-  // Order Details
   const [ticketCount, setTicketCount] = useState(1);
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [senderAccount, setSenderAccount] = useState('');
@@ -53,13 +42,9 @@ export default function App() {
   const [copiedBank, setCopiedBank] = useState('');
   const [submittedOrderId, setSubmittedOrderId] = useState('');
 
-  // Countdown State
   const [timeLeft, setTimeLeft] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00' });
-
-  // User Submitted Tickets List
   const [userTickets, setUserTickets] = useState([]);
 
-  // Fallback Lottery
   const fallbackLottery = {
     _id: '65e48f12a1b2c3d4e5f67890',
     title: '6 Gech EV Makina Equb',
@@ -81,12 +66,11 @@ export default function App() {
     { name: 'Tele Birr', holder: 'Getachew Fikadu Jirata', account: '0999972486' },
     { name: 'Commercial Bank of Ethiopia', holder: 'Getachew Fikadu Jirata', account: '1000804500573' },
     { name: 'BOA', holder: 'Getachew Fikadu Jirata', account: '269980524' },
-    { name: 'Awash Bank', holder: 'Getachew Fikadu Jirata', account: '01320814526900' }
+    { name: 'Awash Bank', holder: 'Getachew Fikadu Jirata', account: '013201821568800' }
   ];
 
   const totalPrice = lotteryData.ticketPrice * ticketCount;
 
-  // Detect Telegram User on Mount & Sync User Profile
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const tg = window.Telegram.WebApp;
@@ -115,7 +99,6 @@ export default function App() {
     }
   }, []);
 
-  // Fetch User Tickets using BOTH telegramId and phoneNumber
   useEffect(() => {
     if (!telegramId && !phoneNumber) return;
     const queryParam = telegramId 
@@ -144,7 +127,6 @@ export default function App() {
       .catch(err => console.log('Error fetching user tickets'));
   }, [telegramId, phoneNumber, lotteryData.title, lotteryData.imageUrl]);
 
-  // Robust Live Countdown Effect
   useEffect(() => {
     const updateCountdown = () => {
       const targetDate = lotteryData.endDate ? new Date(lotteryData.endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -174,7 +156,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [lotteryData]);
 
-  // Handle Admin Login Verification
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (adminUsername === 'admin' && adminPassword === 'gech2026') {
@@ -204,7 +185,6 @@ export default function App() {
     setIsAdminView(false);
   };
 
-  // Fetch Active Lotteries
   const fetchLotteries = () => {
     fetch(`${API_URL}/api/lotteries`)
       .then(res => res.json())
@@ -220,7 +200,6 @@ export default function App() {
     fetchLotteries();
   }, []);
 
-  // Fetch All Tickets for Admin
   const fetchAdminTickets = async () => {
     try {
       const res = await fetch(`${API_URL}/api/admin/tickets`);
@@ -233,7 +212,6 @@ export default function App() {
     }
   };
 
-  // Admin Handler: Add New Lottery Car
   const handleAddLottery = async (newCarData) => {
     try {
       const res = await fetch(`${API_URL}/api/lotteries`, {
@@ -251,17 +229,16 @@ export default function App() {
     }
   };
 
-  // Admin Handler: Approve Ticket
   const handleApprove = async (orderId) => {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
       fetchAdminTickets();
+      fetchLotteries(); // Refresh lottery details so takenNumbers update immediately
     } catch (err) {
       console.error('Error approving ticket:', err);
     }
   };
 
-  // Admin Handler: Reject Ticket
   const handleReject = async (orderId) => {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/reject`, { method: 'PATCH' });
@@ -271,7 +248,6 @@ export default function App() {
     }
   };
 
-  // Fetch Tickets by User Phone Number
   const fetchUserTickets = () => {
     if (!phoneNumber) return;
     fetch(`${API_URL}/api/tickets/user-tickets?phoneNumber=${encodeURIComponent(phoneNumber)}`)
@@ -326,6 +302,7 @@ export default function App() {
   };
 
   const handleQuickPick = () => {
+    fetchLotteries();
     setIsQuickPick(true);
     setTicketCount(1);
     const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !takenNumbers.includes(n));
@@ -409,7 +386,6 @@ export default function App() {
     }
   };
 
-  // RENDER ADMIN DASHBOARD VIEW
   if (isAdminView) {
     return (
       <div className="min-h-screen bg-[#080d09]">
@@ -443,7 +419,6 @@ export default function App() {
     );
   }
 
-  // RENDER MAIN USER MINI APP VIEW
   const activeCount = userTickets.filter(t => t.status === 'APPROVED' || t.status === 'ACTIVE').length;
   const pendingCount = userTickets.filter(t => t.status === 'PENDING REVIEW').length;
   const totalCount = userTickets.length;
@@ -455,7 +430,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0d130e] text-white font-sans select-none pb-24 max-w-md mx-auto relative border-x border-gray-900">
       
-      {/* HEADER BAR */}
       <header className="flex items-center justify-between px-4 py-3 bg-[#0d130e] sticky top-0 z-10 border-b border-gray-900">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 font-bold">
@@ -482,7 +456,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* ADMIN LOGIN MODAL */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#101811] border border-amber-500/40 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
@@ -537,7 +510,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SCREEN 1: HOME PAGE */}
       {currentScreen === 'home' && (
         <main className="px-4 pt-3 space-y-4">
           <div className="bg-[#121c13] border border-emerald-900/40 rounded-3xl overflow-hidden p-4 shadow-xl">
@@ -552,7 +524,6 @@ export default function App() {
             <h2 className="text-2xl font-bold text-white tracking-wide">{lotteryData.title}</h2>
             <p className="text-emerald-400 font-semibold text-sm mb-3">{lotteryData.color}</p>
 
-            {/* DYNAMIC COUNTDOWN TIMER */}
             <div className="mb-4">
               <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">⏱ Time Remaining</p>
               <div className="grid grid-cols-4 gap-2 text-center">
@@ -602,7 +573,6 @@ export default function App() {
         </main>
       )}
 
-      {/* SCREEN 2: TICKET PURCHASE VIEW */}
       {currentScreen === 'buy' && (
         <main className="px-4 pt-3 space-y-4">
           <button onClick={() => setCurrentScreen('home')} className="flex items-center gap-1 text-gray-300 text-sm mb-2 hover:text-white">
@@ -651,9 +621,11 @@ export default function App() {
             </div>
           )}
 
+          {/* 🔄 REFRESH LOTTERY DATA & TAKEN NUMBERS ON OPEN */}
           <button 
             onClick={() => {
               setIsQuickPick(false);
+              fetchLotteries();
               setIsNumberPickerOpen(true);
             }}
             className="w-full bg-[#162017] border border-amber-500/60 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 transition"
@@ -692,7 +664,6 @@ export default function App() {
         </main>
       )}
 
-      {/* SCREEN 3: MY TICKETS VIEW */}
       {currentScreen === 'tickets' && (
         <main className="px-4 pt-3 space-y-4">
           <h2 className="text-xl font-bold text-white">My Tickets</h2>
@@ -776,7 +747,6 @@ export default function App() {
         </main>
       )}
 
-      {/* SCREEN 4: PROFILE VIEW */}
       {currentScreen === 'profile' && (
         <main className="px-4 pt-3 space-y-4">
           <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 flex items-center gap-3">
@@ -852,8 +822,9 @@ export default function App() {
                 const isTaken = takenNumbers.includes(num);
                 const isSelected = selectedNumbers.includes(num);
 
-                let cls = "bg-black text-white border-gray-800";
-                if (isTaken) cls = "bg-red-950/40 text-red-400 border-red-800/80 cursor-not-allowed";
+                // 🔒 LOCKED CARDS: Dark red styling and disabled interaction
+                let cls = "bg-black text-white border-gray-800 hover:border-amber-500/50";
+                if (isTaken) cls = "bg-red-950/60 text-red-400/80 border-red-900/60 cursor-not-allowed opacity-60";
                 if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
 
                 return (
@@ -901,7 +872,6 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
             
-            {/* STEP 1: CONFIRM ORDER */}
             {checkoutStep === 1 && (
               <>
                 <div className="flex items-center justify-between">
@@ -987,7 +957,6 @@ export default function App() {
               </>
             )}
 
-            {/* STEP 2: PAYMENT & RECEIPT UPLOAD */}
             {checkoutStep === 2 && (
               <>
                 <div className="flex items-center justify-between">
@@ -1087,7 +1056,6 @@ export default function App() {
               </>
             )}
 
-            {/* STEP 3: REVIEW ORDER */}
             {checkoutStep === 3 && (
               <>
                 <div className="flex items-center justify-between">
@@ -1196,7 +1164,6 @@ export default function App() {
               </>
             )}
 
-            {/* STEP 4: ORDER SUBMITTED CONFIRMATION */}
             {checkoutStep === 4 && (
               <div className="py-4 text-center space-y-5">
                 <div className="flex items-center justify-between">
@@ -1241,7 +1208,6 @@ export default function App() {
         </div>
       )}
 
-      {/* FIXED BOTTOM NAVIGATION BAR */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#0d130e]/95 backdrop-blur-md border-t border-gray-800 py-2.5 px-6 flex justify-around items-center z-20">
         <button 
           onClick={() => setCurrentScreen('home')} 
