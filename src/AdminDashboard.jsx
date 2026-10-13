@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, X, Car, Clock, User, Phone, CreditCard, Edit3 } from 'lucide-react';
+import { Plus, X, Car, Clock, User, Phone, CreditCard, Edit3, Trash2 } from 'lucide-react';
 
 export default function AdminDashboard({ 
   tickets = [], 
@@ -8,6 +8,7 @@ export default function AdminDashboard({
   onReject, 
   onAddLottery, 
   onUpdateLottery, 
+  onDeleteLottery,
   apiUrl = 'http://localhost:5000' 
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -107,12 +108,20 @@ export default function AdminDashboard({
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => handleOpenEditModal(lottery)}
-                  className="bg-amber-500/10 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-black p-2.5 rounded-xl text-xs flex items-center gap-1.5 font-bold transition shrink-0"
-                >
-                  <Edit3 className="w-4 h-4" /> Edit
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button 
+                    onClick={() => handleOpenEditModal(lottery)}
+                    className="bg-amber-500/10 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-black p-2.5 rounded-xl text-xs flex items-center gap-1 font-bold transition"
+                  >
+                    <Edit3 className="w-4 h-4" /> Edit
+                  </button>
+                  <button 
+                    onClick={() => onDeleteLottery && onDeleteLottery(lottery._id)}
+                    className="bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500 hover:text-white p-2.5 rounded-xl text-xs flex items-center gap-1 font-bold transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
