@@ -29,6 +29,7 @@ export default function App() {
 
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [savedPhoneInput, setSavedPhoneInput] = useState('');
   const [customerId, setCustomerId] = useState('_QIZ10PM');
   const [telegramId, setTelegramId] = useState('');
   const [isSavedToast, setIsSavedToast] = useState(false);
@@ -84,8 +85,13 @@ export default function App() {
           .then(res => res.json())
           .then(data => {
             if (data.success && data.user) {
-              if (data.user.phoneNumber) setPhoneNumber(data.user.phoneNumber);
-              if (data.user.firstName) setFullName(data.user.firstName);
+              if (data.user.phoneNumber) {
+                setPhoneNumber(data.user.phoneNumber);
+                setSavedPhoneInput(data.user.phoneNumber);
+              }
+              if (data.user.firstName && !fullName) {
+                setFullName(data.user.firstName);
+              }
             }
           })
           .catch(err => console.log('Error fetching user profile'));
@@ -108,7 +114,11 @@ export default function App() {
             title: lotteryData.title,
             date: new Date(t.createdAt).toLocaleDateString('en-US'),
             status: t.status,
-            statusText: t.status === 'APPROVED' ? '✅ Approved by Admin' : t.status === 'REJECTED' ? '❌ Payment Rejected' : '⌛ Waiting for admin payment approval',
+            statusText: t.status === 'APPROVED' 
+              ? '✅ Approved by Admin' 
+              : t.status === 'REJECTED' 
+              ? '❌ Payment Rejected' 
+              : '⌛ Waiting for admin payment approval',
             imageUrl: lotteryData.imageUrl
           }));
           setUserTickets(mappedTickets);
@@ -194,7 +204,9 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/api/admin/tickets`);
       const data = await res.json();
-      if (data.success) setAdminTickets(data.tickets);
+      if (data.success) {
+        setAdminTickets(data.tickets);
+      }
     } catch (err) {
       console.error('Error fetching admin tickets:', err);
     }
@@ -258,6 +270,7 @@ export default function App() {
       .catch(err => console.log('Using local user tickets state'));
   };
 
+  // 🔄 MULTI-CARD SELECTION LOGIC: Allows selecting up to ticketCount numbers
   const toggleNumber = (num) => {
     const numericNum = Number(num);
     const formattedTaken = takenNumbers.map(n => Number(n));
@@ -269,6 +282,7 @@ export default function App() {
       if (selectedNumbers.length < ticketCount) {
         setSelectedNumbers([...selectedNumbers, numericNum]);
       } else {
+        // If user already reached ticketCount, replace the first selected or alert
         alert(`You have selected maximum tickets (${ticketCount}) for this purchase. Change quantity above to pick more.`);
       }
     }
@@ -287,7 +301,9 @@ export default function App() {
     if (file) {
       setReceiptFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => setReceiptImage(reader.result);
+      reader.onloadend = () => {
+        setReceiptImage(reader.result);
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -298,6 +314,7 @@ export default function App() {
     const formattedTaken = takenNumbers.map(n => Number(n));
     const availableNumbers = Array.from({ length: 4000 }, (_, i) => i + 1).filter(n => !formattedTaken.includes(n));
     
+    // Pick random numbers matching the ticketCount
     const picks = [];
     for (let i = 0; i < ticketCount; i++) {
       if (availableNumbers.length === 0) break;
@@ -309,37 +326,21 @@ export default function App() {
     setCheckoutStep(1);
   };
 
-  // 💾 Save profile to DB and proceed to payment
-  const handleSaveProfileAndContinue = async () => {
-    if (!fullName.trim() || !phoneNumber.trim()) return;
-    
-    if (telegramId) {
-      try {
-        await fetch(`${API_URL}/api/users/${telegramId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName, phoneNumber })
-        });
-      } catch (e) {
-        console.error('Failed to sync profile', e);
-      }
-    }
-    setCheckoutStep(2);
-  };
-
   const handleFinalSubmit = async () => {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append('lotteryId', lotteryData._id || '65e48f12a1b2c3d4e5f67890');
     formData.append('telegramId', telegramId || customerId);
     formData.append('fullName', fullName);
-    formData.append('phoneNumber', phoneNumber);
+    formData.append('phoneNumber', phoneNumber || savedPhoneInput);
     formData.append('selectedNumbers', JSON.stringify(selectedNumbers));
     formData.append('isQuickPick', isQuickPick);
     formData.append('ticketCount', ticketCount);
     formData.append('totalPrice', totalPrice);
     formData.append('senderAccount', senderAccount);
-    if (receiptFile) formData.append('receipt', receiptFile);
+    if (receiptFile) {
+      formData.append('receipt', receiptFile);
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/tickets/order`, {
@@ -347,6 +348,7 @@ export default function App() {
         body: formData
       });
       const data = await res.json();
+
       if (data.success) {
         setSubmittedOrderId(data.orderId);
       } else {
@@ -357,6 +359,7 @@ export default function App() {
       setSubmittedOrderId('swCX' + Math.random().toString(36).substring(2, 8) + 'JT');
     } finally {
       setIsSubmitting(false);
+      
       const newTicket = {
         id: `#${selectedNumbers[0] || 2}`,
         title: lotteryData.title,
@@ -380,7 +383,8 @@ export default function App() {
     setSenderAccount('');
   };
 
-  const handleSavePhoneManual = async () => {
+  const handleSavePhone = async () => {
+    setPhoneNumber(savedPhoneInput);
     setIsSavedToast(true);
     setTimeout(() => setIsSavedToast(false), 2500);
 
@@ -389,7 +393,7 @@ export default function App() {
         await fetch(`${API_URL}/api/users/${telegramId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber, fullName })
+          body: JSON.stringify({ phoneNumber: savedPhoneInput })
         });
       } catch (e) {
         console.error('Failed to update phone on backend', e);
@@ -405,11 +409,27 @@ export default function App() {
             <ShieldCheck className="w-4 h-4" /> Admin Console
           </span>
           <div className="flex gap-2">
-            <button onClick={() => setIsAdminView(false)} className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold transition">← User View</button>
-            <button onClick={handleAdminLogout} className="px-3.5 py-1.5 bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-300 rounded-xl text-xs font-bold transition">Logout</button>
+            <button 
+              onClick={() => setIsAdminView(false)}
+              className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold transition"
+            >
+              ← User View
+            </button>
+            <button 
+              onClick={handleAdminLogout}
+              className="px-3.5 py-1.5 bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-300 rounded-xl text-xs font-bold transition"
+            >
+              Logout
+            </button>
           </div>
         </div>
-        <AdminDashboard tickets={adminTickets} onApprove={handleApprove} onReject={handleReject} onAddLottery={handleAddLottery} apiUrl={API_URL} />
+        <AdminDashboard 
+          tickets={adminTickets}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onAddLottery={handleAddLottery}
+          apiUrl={API_URL}
+        />
       </div>
     );
   }
@@ -417,6 +437,7 @@ export default function App() {
   const activeCount = userTickets.filter(t => t.status === 'APPROVED' || t.status === 'ACTIVE').length;
   const pendingCount = userTickets.filter(t => t.status === 'PENDING REVIEW').length;
   const totalCount = userTickets.length;
+
   const soldCount = lotteryData.soldTickets || 0;
   const totalTickets = lotteryData.totalTickets || 4000;
   const fillPercentage = Math.round((soldCount / totalTickets) * 100);
@@ -426,13 +447,27 @@ export default function App() {
       
       <header className="flex items-center justify-between px-4 py-3 bg-[#0d130e] sticky top-0 z-10 border-b border-gray-900">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 font-bold">🏆</div>
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 font-bold">
+            🏆
+          </div>
           <span className="font-semibold text-amber-400 text-sm">Getachew Fikadu</span>
         </div>
+
         <div className="flex items-center gap-2">
-          <button onClick={handleOpenAdmin} className="px-2.5 py-1 bg-amber-500 text-black text-xs font-bold rounded-xl hover:bg-amber-400 transition flex items-center gap-1">
+          <button 
+            onClick={handleOpenAdmin}
+            className="px-2.5 py-1 bg-amber-500 text-black text-xs font-bold rounded-xl hover:bg-amber-400 transition flex items-center gap-1"
+          >
             <Lock className="w-3 h-3" /> Admin
           </button>
+          <div className="flex items-center gap-1 bg-[#162017] border border-gray-700/60 rounded-xl px-2.5 py-1 text-xs text-gray-200">
+            <Globe className="w-3.5 h-3.5 text-gray-400" />
+            <select className="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="en">English</option>
+              <option value="am">አማርኛ</option>
+              <option value="or">Afaan Oromo</option>
+            </select>
+          </div>
         </div>
       </header>
 
@@ -440,20 +475,51 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#101811] border border-amber-500/40 rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2"><ShieldCheck className="text-amber-400 w-5 h-5" /> Admin Portal</h3>
-              <button onClick={() => setShowLoginModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <ShieldCheck className="text-amber-400 w-5 h-5" /> Admin Portal
+              </h3>
+              <button onClick={() => setShowLoginModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
             </div>
+
             <form onSubmit={handleAdminLogin} className="space-y-3">
-              {loginError && <p className="text-xs text-red-400 bg-red-950/50 p-2.5 rounded-xl border border-red-800/80 font-semibold text-center">{loginError}</p>}
+              {loginError && (
+                <p className="text-xs text-red-400 bg-red-950/50 p-2.5 rounded-xl border border-red-800/80 font-semibold text-center">
+                  {loginError}
+                </p>
+              )}
+
               <div>
                 <label className="text-xs font-semibold text-gray-300">Username</label>
-                <input type="text" placeholder="Enter admin username" required value={adminUsername} onChange={(e) => setAdminUsername(e.target.value)} className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500" />
+                <input 
+                  type="text" 
+                  placeholder="Enter admin username"
+                  required
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value)}
+                  className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500" 
+                />
               </div>
+
               <div>
                 <label className="text-xs font-semibold text-gray-300">Password</label>
-                <input type="password" placeholder="••••••••" required value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500" />
+                <input 
+                  type="password" 
+                  placeholder="••••••••"
+                  required
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500" 
+                />
               </div>
-              <button type="submit" className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm transition mt-2">Authenticate</button>
+
+              <button 
+                type="submit"
+                className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm transition mt-2"
+              >
+                Authenticate & Open Dashboard
+              </button>
             </form>
           </div>
         </div>
@@ -464,33 +530,76 @@ export default function App() {
           <div className="bg-[#121c13] border border-emerald-900/40 rounded-3xl overflow-hidden p-4 shadow-xl">
             <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-gray-800 to-black h-48 mb-4">
               <img src={lotteryData.imageUrl} alt={lotteryData.title} className="w-full h-full object-cover" />
-              <div className="absolute top-3 left-3 bg-amber-500/90 text-black font-bold text-xs px-2.5 py-1 rounded-full">🔥 Featured</div>
+              <div className="absolute top-3 left-3 bg-amber-500/90 text-black font-bold text-xs px-2.5 py-1 rounded-full">
+                🔥 Featured
+              </div>
+              <div className="absolute top-3 right-3 text-amber-400 text-xs tracking-widest">★★★★★</div>
             </div>
+
             <h2 className="text-2xl font-bold text-white tracking-wide">{lotteryData.title}</h2>
             <p className="text-emerald-400 font-semibold text-sm mb-3">{lotteryData.color}</p>
 
+            <div className="mb-4">
+              <p className="text-xs text-gray-400 flex items-center gap-1 mb-2">⏱ Time Remaining</p>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                {[
+                  { label: 'Days', value: timeLeft.days },
+                  { label: 'Hrs', value: timeLeft.hours },
+                  { label: 'Min', value: timeLeft.minutes },
+                  { label: 'Sec', value: timeLeft.seconds }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-[#0b100c] border border-amber-500/30 rounded-xl py-2">
+                    <div className="text-xl font-bold text-amber-400 font-mono">{item.value}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-1.5 mb-4">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-white">{soldCount} sold</span>
+                <span className="text-white">{soldCount} <span className="text-gray-400 font-normal">sold</span></span>
                 <span className="text-emerald-400">{fillPercentage}% filled</span>
               </div>
               <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
                 <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${fillPercentage}%` }}></div>
               </div>
+              <p className="text-xs text-gray-400 pt-0.5">{totalTickets - soldCount} tickets remaining</p>
             </div>
 
-            <button onClick={() => setCurrentScreen('buy')} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold text-base py-3.5 px-5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
-              <span>Buy Ticket</span>
-            </button>
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-2.5 bg-[#0b100c] px-3.5 py-2.5 rounded-2xl border border-gray-800/80">
+                <div className="p-1.5 bg-[#162017] rounded-xl text-gray-400 text-xs">👥</div>
+                <div>
+                  <p className="text-[10px] text-gray-400 leading-tight">Participants</p>
+                  <p className="text-sm font-bold text-white leading-tight">{soldCount}</p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setCurrentScreen('buy')}
+                className="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-95 transition text-black font-bold text-base py-3.5 px-5 rounded-2xl shadow-lg flex items-center justify-center gap-2"
+              >
+                <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">4</span>
+                <span>Buy Ticket</span>
+              </button>
+            </div>
           </div>
         </main>
       )}
 
       {currentScreen === 'buy' && (
         <main className="px-4 pt-3 space-y-4">
-          <button onClick={() => setCurrentScreen('home')} className="flex items-center gap-1 text-gray-300 text-sm mb-2 hover:text-white"><ArrowLeft className="w-4 h-4" /> Back</button>
+          <button onClick={() => setCurrentScreen('home')} className="flex items-center gap-1 text-gray-300 text-sm mb-2 hover:text-white">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
 
           <div className="bg-[#121c13] border border-emerald-900/40 rounded-3xl overflow-hidden p-4 shadow-xl">
+            <div className="relative rounded-2xl overflow-hidden h-44 mb-3">
+              <img src={lotteryData.imageUrl} alt={lotteryData.title} className="w-full h-full object-cover" />
+              <div className="absolute top-3 left-3 bg-amber-500/90 text-black font-bold text-xs px-2.5 py-1 rounded-full">🔥 Featured</div>
+            </div>
+
             <h2 className="text-xl font-bold text-white">{lotteryData.title}</h2>
             <p className="text-emerald-400 font-semibold text-xs">{lotteryData.color}</p>
           </div>
@@ -498,31 +607,85 @@ export default function App() {
           <div className="flex items-center justify-between py-2">
             <div>
               <p className="text-xs text-gray-400">Ticket Price</p>
-              <p className="text-2xl font-black text-amber-400">{totalPrice.toLocaleString()} <span className="text-sm font-semibold">Birr</span></p>
+              <p className="text-2xl font-black text-amber-400">
+                {totalPrice.toLocaleString()} <span className="text-sm font-semibold">Birr</span>
+              </p>
             </div>
+
             <div className="flex items-center gap-3 bg-[#162017] border border-gray-800 rounded-2xl p-1.5">
-              <button onClick={() => {
-                const newCount = Math.max(1, ticketCount - 1);
-                setTicketCount(newCount);
-                if (selectedNumbers.length > newCount) setSelectedNumbers(selectedNumbers.slice(0, newCount));
-              }} className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center"><Minus className="w-4 h-4" /></button>
+              <button 
+                onClick={() => {
+                  const newCount = Math.max(1, ticketCount - 1);
+                  setTicketCount(newCount);
+                  if (selectedNumbers.length > newCount) {
+                    setSelectedNumbers(selectedNumbers.slice(0, newCount));
+                  }
+                }} 
+                className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
               <span className="text-lg font-bold w-6 text-center">{ticketCount}</span>
-              <button onClick={() => setTicketCount(ticketCount + 1)} className="w-9 h-9 rounded-xl bg-amber-500 text-black font-bold flex items-center justify-center"><Plus className="w-4 h-4" /></button>
+              <button 
+                onClick={() => setTicketCount(ticketCount + 1)} 
+                className="w-9 h-9 rounded-xl bg-amber-500 text-black font-bold flex items-center justify-center"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <button onClick={() => { setIsQuickPick(false); fetchLotteries(); setIsNumberPickerOpen(true); }} className="w-full bg-[#162017] border border-amber-500/60 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 transition">
-            <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-              <Target className="w-4 h-4" /> Select your lucky numbers ({selectedNumbers.length}/{ticketCount})
+          {selectedNumbers.length > 0 && !isQuickPick && (
+            <div className="flex items-center gap-2 text-xs text-gray-300">
+              <span>Selected numbers ({selectedNumbers.length}/{ticketCount}):</span>
+              <div className="flex gap-1 flex-wrap">
+                {selectedNumbers.map(num => (
+                  <span key={num} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded-lg text-xs">
+                    {padNumber(num)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 🔄 REFRESH LOTTERY DATA & TAKEN NUMBERS ON OPEN */}
+          <button 
+            onClick={() => {
+              setIsQuickPick(false);
+              fetchLotteries();
+              setIsNumberPickerOpen(true);
+            }}
+            className="w-full bg-[#162017] border border-amber-500/60 rounded-2xl p-4 flex items-center justify-between hover:border-amber-400 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center font-bold text-amber-400 text-sm">
+                5
+              </div>
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                <Target className="w-4 h-4" /> Select your lucky numbers ({selectedNumbers.length}/{ticketCount})
+              </div>
             </div>
           </button>
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <button onClick={handleQuickPick} className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-1.5">
+            <button 
+              onClick={handleQuickPick}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-1.5 active:scale-95 transition"
+            >
               <Zap className="w-4 h-4 fill-black" /> Quick Pick
             </button>
-            <button disabled={selectedNumbers.length !== ticketCount} onClick={() => { setIsQuickPick(false); setCheckoutStep(1); }} className={`py-3.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition ${selectedNumbers.length === ticketCount ? 'bg-emerald-500 text-white shadow-lg' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}>
-              <span>Buy Ticket</span>
+            <button 
+              disabled={selectedNumbers.length !== ticketCount}
+              onClick={() => {
+                setIsQuickPick(false);
+                setCheckoutStep(1);
+              }}
+              className={`py-3.5 px-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition ${
+                selectedNumbers.length === ticketCount ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg' : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">7</span>
+              <span>Buy Ticket ({selectedNumbers.length}/{ticketCount})</span>
             </button>
           </div>
         </main>
@@ -531,53 +694,154 @@ export default function App() {
       {currentScreen === 'tickets' && (
         <main className="px-4 pt-3 space-y-4">
           <h2 className="text-xl font-bold text-white">My Tickets</h2>
+
           <div className="flex gap-2">
-            <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Enter phone number" className="w-2/3 bg-[#162218] border border-gray-800 rounded-2xl px-3 py-2 text-xs text-white" />
-            <button onClick={fetchUserTickets} className="bg-amber-500 text-black font-bold text-xs px-4 rounded-2xl"><Search className="w-4 h-4" /></button>
+            <div className="flex-1 flex items-center bg-[#162218] border border-gray-800 rounded-2xl px-3 py-2">
+              <input 
+                type="text" 
+                value={phoneNumber} 
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Enter phone number"
+                className="w-2/3 bg-transparent text-xs text-white focus:outline-none" 
+              />
+              <span className="text-gray-500 text-xs px-1">|</span>
+              <input 
+                type="text" 
+                value={customerId} 
+                readOnly
+                className="w-1/3 bg-transparent text-xs text-gray-400 focus:outline-none" 
+              />
+            </div>
+            <button 
+              onClick={fetchUserTickets}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs px-4 rounded-2xl flex items-center gap-1.5 transition"
+            >
+              <Search className="w-4 h-4" /> Search
+            </button>
           </div>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3 text-center">
+              <div className="text-2xl font-black text-emerald-500">{activeCount}</div>
+              <div className="text-[11px] text-gray-400 font-semibold mt-0.5">Active</div>
+            </div>
+            <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3 text-center">
+              <div className="text-2xl font-black text-amber-500">{pendingCount}</div>
+              <div className="text-[11px] text-gray-400 font-semibold mt-0.5">Pending</div>
+            </div>
+            <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3 text-center">
+              <div className="text-2xl font-black text-emerald-400">{totalCount}</div>
+              <div className="text-[11px] text-gray-400 font-semibold mt-0.5">Total</div>
+            </div>
+          </div>
+
           <div className="pt-2 space-y-3">
-            {userTickets.map((ticket, idx) => (
-              <div key={idx} className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-white">{ticket.title}</h4>
-                    <p className="text-xs font-bold text-amber-400">{ticket.id}</p>
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400 tracking-wider uppercase">
+              <Clock className="w-3.5 h-3.5" /> ALL SUBMITTED TICKETS
+            </div>
+
+            {userTickets.length === 0 ? (
+              <p className="text-xs text-gray-500 text-center py-6">No tickets found for this phone number.</p>
+            ) : (
+              userTickets.map((ticket, idx) => (
+                <div key={idx} className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img src={ticket.imageUrl} alt={ticket.title} className="w-14 h-14 rounded-xl object-cover" />
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{ticket.title}</h4>
+                        <p className="text-xs font-bold text-amber-400">{ticket.id}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">{ticket.date}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1">
+                      <div className={`p-2 rounded-full border ${ticket.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400'}`}>
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <span className={`text-[10px] font-bold ${ticket.status === 'APPROVED' ? 'text-emerald-400' : 'text-amber-400'}`}>{ticket.status}</span>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold text-amber-400">{ticket.status}</span>
+
+                  <div className="flex items-center gap-1.5 text-xs text-gray-400 pt-2 border-t border-gray-800/60">
+                    <span>{ticket.status === 'APPROVED' ? '✅' : '⌛'}</span>
+                    <span>{ticket.statusText}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </main>
       )}
 
       {currentScreen === 'profile' && (
         <main className="px-4 pt-3 space-y-4">
-          <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 space-y-3">
-            <div>
-              <label className="text-xs text-gray-400">Full Name</label>
-              <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your Name" className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white" />
+          <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-black">
+              <Phone className="w-6 h-6 fill-black" />
             </div>
             <div>
-              <label className="text-xs text-gray-400">Phone Number</label>
-              <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="+251..." className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white" />
+              <p className="text-xs text-gray-400">User Phone Number</p>
+              <p className="text-lg font-bold text-white">{phoneNumber || 'Not shared yet'}</p>
             </div>
-            <button onClick={handleSavePhoneManual} className="w-full py-3 bg-amber-500 text-black font-bold rounded-xl text-sm">Save Profile</button>
-            {isSavedToast && <p className="text-xs text-emerald-400 text-center font-semibold">✓ Saved successfully!</p>}
+          </div>
+
+          <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-black font-black text-sm">
+              ID
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Customer ID</p>
+              <p className="text-lg font-bold text-white">{customerId}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="block text-xs font-semibold text-gray-300">Save your phone number</label>
+            <input 
+              type="text" 
+              value={savedPhoneInput} 
+              onChange={(e) => setSavedPhoneInput(e.target.value)}
+              placeholder="+251..."
+              className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 px-4 text-sm text-white focus:outline-none focus:border-amber-500" 
+            />
+            <button 
+              onClick={handleSavePhone}
+              className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:scale-95 transition text-black font-bold rounded-2xl text-base shadow-lg"
+            >
+              Save
+            </button>
+
+            {isSavedToast && (
+              <p className="text-xs text-emerald-400 text-center pt-1 font-semibold">✓ Phone number updated successfully!</p>
+            )}
+          </div>
+
+          <div className="text-center pt-8 space-y-1">
+            <p className="text-xs text-gray-500">© 2026 Getachew Fikadu Jirata. All Rights Reserved.</p>
+            <p className="text-xs text-gray-500">Designed & Developed by Qaroo Soft</p>
           </div>
         </main>
       )}
 
-      {/* NUMBER PICKER MODAL */}
+      {/* MODAL 1: NUMBER PICKER MODAL (TYPE-SAFE TAKEN CHECK & MULTI-SELECT) */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
-          <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4">
+          <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h3 className="text-lg font-bold text-white">Select your lucky numbers</h3>
-                <p className="text-xs text-amber-400 font-semibold">{selectedNumbers.length} of {ticketCount} selected</p>
+                <p className="text-xs text-amber-400 font-semibold">{selectedNumbers.length} of {ticketCount} numbers selected</p>
               </div>
-              <button onClick={() => setIsNumberPickerOpen(false)} className="p-1.5 bg-[#1a261c] rounded-full text-gray-400"><X className="w-5 h-5" /></button>
+              <button onClick={() => setIsNumberPickerOpen(false)} className="p-1.5 bg-[#1a261c] rounded-full text-gray-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 text-xs mb-3 font-semibold">
+              <span className="text-amber-400">🟡 Selected</span>
+              <span className="text-red-500">🔴 Taken</span>
+              <span className="text-gray-400">⬛ Free</span>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-7 gap-1.5 my-2 max-h-[50vh]">
@@ -587,51 +851,136 @@ export default function App() {
                 const isTaken = formattedTaken.includes(numericNum);
                 const isSelected = selectedNumbers.includes(numericNum);
 
-                let cls = "bg-black text-white border-gray-800";
+                let cls = "bg-black text-white border-gray-800 hover:border-amber-500/50";
                 if (isTaken) cls = "bg-red-950/60 text-red-400/80 border-red-900/60 cursor-not-allowed opacity-60";
-                if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg";
+                if (isSelected) cls = "bg-amber-400 text-black border-amber-300 font-bold shadow-lg scale-105";
 
                 return (
-                  <button key={num} disabled={isTaken} onClick={() => toggleNumber(numericNum)} className={`h-9 border rounded-xl flex items-center justify-center text-[11px] font-mono transition ${cls}`}>
+                  <button
+                    key={num}
+                    disabled={isTaken}
+                    onClick={() => toggleNumber(numericNum)}
+                    className={`h-9 border rounded-xl flex items-center justify-center text-[11px] font-mono transition ${cls}`}
+                  >
                     {padNumber(numericNum)}
                   </button>
                 );
               })}
             </div>
 
-            <button disabled={selectedNumbers.length !== ticketCount} onClick={() => setIsNumberPickerOpen(false)} className={`w-full py-3.5 rounded-2xl font-bold transition ${selectedNumbers.length === ticketCount ? 'bg-emerald-500 text-white' : 'bg-emerald-900/40 text-emerald-300/40 cursor-not-allowed'}`}>
-              Done
-            </button>
+            <div className="pt-3 border-t border-gray-800 space-y-2">
+              <div className="flex justify-between items-center px-1 text-sm font-semibold">
+                <span className="text-gray-400">
+                  {selectedNumbers.length} × {lotteryData.ticketPrice.toLocaleString()} Birr
+                </span>
+                <span className="text-white font-bold">
+                  {(selectedNumbers.length * lotteryData.ticketPrice).toLocaleString()} Birr
+                </span>
+              </div>
+
+              <button
+                disabled={selectedNumbers.length !== ticketCount}
+                onClick={() => setIsNumberPickerOpen(false)}
+                className={`w-full py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 text-base transition ${
+                  selectedNumbers.length === ticketCount
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-white cursor-pointer shadow-lg'
+                    : 'bg-emerald-900/40 text-emerald-300/40 cursor-not-allowed'
+                }`}
+              >
+                <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">6</span>
+                <span>{selectedNumbers.length === ticketCount ? 'Done' : `Select ${ticketCount - selectedNumbers.length} more number(s)`}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* CHECKOUT FLOW WITH EDITABLE NAME & PHONE */}
+      {/* CHECKOUT FLOW MODALS */}
       {checkoutStep > 0 && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
-          <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-md bg-[#0d150f] border-t border-gray-800 rounded-t-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
             
             {checkoutStep === 1 && (
               <>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-white">Enter Contact Info</h3>
-                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400"><X className="w-5 h-5" /></button>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Confirm your order</h3>
+                    <p className="text-xs text-gray-400">Step 1 of 3</p>
+                  </div>
+                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-gray-800 rounded-full"></div>
+                  <div className="h-1.5 bg-gray-800 rounded-full"></div>
+                </div>
+
+                <div className="bg-[#121e14] border border-emerald-900/30 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-lg font-bold text-white">{lotteryData.title}</h4>
+                  <p className="text-xs text-gray-400">{ticketCount} tickets × {lotteryData.ticketPrice.toLocaleString()} Birr</p>
+                  <div className="text-2xl font-black text-amber-400">{totalPrice.toLocaleString()} Birr</div>
+                  
+                  {isQuickPick ? (
+                    <div className="inline-block bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-semibold px-3 py-1 rounded-full">
+                      Random numbers will be assigned
+                    </div>
+                  ) : selectedNumbers.length > 0 ? (
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {selectedNumbers.map(num => (
+                        <span key={num} className="bg-amber-500 text-black font-bold text-xs px-2 py-0.5 rounded-md font-mono">
+                          #{padNumber(num)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="inline-block bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-semibold px-3 py-1 rounded-full">
+                      Random numbers will be assigned
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-300 mb-1">Full Name</label>
-                    <input type="text" placeholder="Enter your full name" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-amber-500" />
+                    <div className="relative flex items-center">
+                      <User className="absolute left-3.5 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        placeholder="Enter your full name" 
+                        value={fullName} 
+                        onChange={(e) => setFullName(e.target.value)} 
+                        className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-amber-500" 
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number</label>
-                    <input type="text" placeholder="+251..." value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-amber-500" />
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Phone Number (Synced from Telegram)</label>
+                    <div className="relative flex items-center">
+                      <Phone className="absolute left-3.5 w-4 h-4 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={phoneNumber} 
+                        readOnly 
+                        className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3.5 pl-10 pr-4 text-sm text-gray-300 cursor-not-allowed focus:outline-none" 
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <button disabled={!fullName.trim() || !phoneNumber.trim()} onClick={handleSaveProfileAndContinue} className={`w-full py-4 rounded-2xl font-bold transition ${fullName.trim() && phoneNumber.trim() ? 'bg-amber-500 text-black' : 'bg-amber-500/50 text-black/50 cursor-not-allowed'}`}>
-                  Continue to Payment
+                <button 
+                  disabled={!fullName.trim()}
+                  onClick={() => setCheckoutStep(2)}
+                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 text-base transition ${
+                    fullName.trim() ? 'bg-amber-500 text-black hover:bg-amber-400 cursor-pointer shadow-lg' : 'bg-amber-500/50 text-black/50 cursor-not-allowed'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">8</span>
+                  <span>Continue</span>
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </>
             )}
@@ -639,32 +988,98 @@ export default function App() {
             {checkoutStep === 2 && (
               <>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-white">Payment</h3>
-                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400"><X className="w-5 h-5" /></button>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Payment</h3>
+                    <p className="text-xs text-gray-400">Step 2 of 3</p>
+                  </div>
+                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-gray-800 rounded-full"></div>
+                </div>
+
+                <p className="text-xs font-semibold text-gray-300">Select bank to view account (optional)</p>
 
                 <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
                   {bankAccounts.map((b, i) => (
                     <div key={i} className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-white">{b.name}</p>
-                        <p className="text-[10px] text-gray-400">{b.account}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-950/60 border border-emerald-800/40 flex items-center justify-center text-emerald-400 text-xs">
+                          🏦
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-white">{b.name}</p>
+                          <p className="text-[10px] text-gray-400">{b.holder}</p>
+                        </div>
                       </div>
-                      <button onClick={() => handleCopy(b.account)} className="bg-[#1a261c] text-gray-200 px-2.5 py-1.5 rounded-xl text-xs">
-                        {copiedBank === b.account ? 'Copied' : 'Copy'}
-                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-white">{b.account}</span>
+                        <button 
+                          onClick={() => handleCopy(b.account)}
+                          className="bg-[#1a261c] hover:bg-[#233326] text-gray-200 px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1"
+                        >
+                          {copiedBank === b.account ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedBank === b.account ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="relative border-2 border-dashed border-amber-500/40 bg-[#121e14] rounded-2xl p-5 text-center cursor-pointer">
-                  <input type="file" accept="image/*" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                  {receiptImage ? <p className="text-xs text-emerald-400 font-semibold">✓ Receipt Attached</p> : <p className="text-xs font-bold text-white">Tap to upload payment receipt</p>}
+                <div className="relative border-2 border-dashed border-amber-500/40 hover:border-amber-500 bg-[#121e14] rounded-2xl p-5 text-center cursor-pointer transition">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                  />
+                  {receiptImage ? (
+                    <div className="space-y-2">
+                      <img src={receiptImage} alt="Receipt preview" className="h-28 mx-auto rounded-xl object-cover border border-emerald-500/40" />
+                      <p className="text-xs text-emerald-400 font-semibold">✓ Receipt Attached</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-bold text-white">Tap to upload your payment receipt</p>
+                      <p className="text-[10px] text-gray-400">PNG or JPG up to 10MB</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Sent from account number (optional)</label>
+                  <input 
+                    type="text"
+                    placeholder="Account you sent money from"
+                    value={senderAccount}
+                    onChange={(e) => setSenderAccount(e.target.value)}
+                    className="w-full bg-[#162218] border border-gray-800 rounded-2xl py-3 px-4 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                  <button onClick={() => setCheckoutStep(1)} className="py-3.5 bg-[#162218] text-white font-bold rounded-2xl text-sm">Back</button>
-                  <button onClick={() => setCheckoutStep(3)} className="py-3.5 bg-amber-500 text-black font-bold rounded-2xl text-sm">Continue</button>
+                  <button 
+                    onClick={() => setCheckoutStep(1)}
+                    className="py-3.5 bg-[#162218] hover:bg-[#1e2e21] text-white font-bold rounded-2xl text-sm"
+                  >
+                    Back
+                  </button>
+                  <button 
+                    onClick={() => setCheckoutStep(3)}
+                    className="py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm flex items-center justify-center gap-2"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">9</span>
+                    <span>Continue &gt;</span>
+                  </button>
                 </div>
               </>
             )}
@@ -672,27 +1087,138 @@ export default function App() {
             {checkoutStep === 3 && (
               <>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-white">Review Order</h3>
-                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400"><X className="w-5 h-5" /></button>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Review Order</h3>
+                    <p className="text-xs text-gray-400">Step 3 of 3</p>
+                  </div>
+                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400">
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 space-y-2 text-xs">
-                  <p><b>Name:</b> {fullName}</p>
-                  <p><b>Phone:</b> {phoneNumber}</p>
-                  <p><b>Total:</b> {totalPrice.toLocaleString()} Birr</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
                 </div>
 
-                <button disabled={isSubmitting} onClick={handleFinalSubmit} className="w-full py-3.5 bg-amber-500 text-black font-bold rounded-2xl text-sm">
-                  {isSubmitting ? 'Submitting...' : 'Submit Order'}
-                </button>
+                <div className="bg-[#121e14] border border-gray-800/80 rounded-2xl p-4 space-y-2.5 text-xs">
+                  <h4 className="text-sm font-bold text-white mb-2">Order Summary</h4>
+                  
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Item</span>
+                    <span className="font-bold text-white">{lotteryData.title}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Tickets</span>
+                    <span className="font-bold text-white">{ticketCount} × {lotteryData.ticketPrice.toLocaleString()} Birr</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-gray-400 block">Ticket Numbers</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {selectedNumbers.map(n => (
+                        <span key={n} className="bg-amber-500 text-black font-bold px-2 py-0.5 rounded text-[11px] font-mono">
+                          #{padNumber(n)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-1">
+                    <span className="text-gray-400">Full Name</span>
+                    <span className="font-bold text-white">{fullName}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Phone Number</span>
+                    <span className="font-bold text-white">{phoneNumber}</span>
+                  </div>
+
+                  {senderAccount && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Sent from account number (optional)</span>
+                      <span className="font-bold text-white font-mono">{senderAccount}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between pt-2 border-t border-gray-800 text-sm">
+                    <span className="text-gray-300 font-semibold">Total</span>
+                    <span className="font-black text-amber-400 text-base">{totalPrice.toLocaleString()} Birr</span>
+                  </div>
+                </div>
+
+                {receiptImage && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-gray-300">Uploaded payment receipt</p>
+                    <div className="rounded-2xl overflow-hidden border-2 border-emerald-500/80 p-1 bg-[#121e14]">
+                      <img src={receiptImage} alt="Receipt preview" className="w-full h-36 object-cover rounded-xl" />
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-300">Your tickets will be reviewed and confirmed within 24 hours.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button 
+                    onClick={() => setCheckoutStep(2)}
+                    className="py-3.5 bg-[#162218] hover:bg-[#1e2e21] text-white font-bold rounded-2xl text-sm"
+                  >
+                    Back
+                  </button>
+                  <button 
+                    disabled={isSubmitting}
+                    onClick={handleFinalSubmit}
+                    className="py-3.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-2xl text-sm flex items-center justify-center gap-2"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-black/20 flex items-center justify-center text-xs font-black">10</span>
+                    <span>{isSubmitting ? 'Submitting...' : 'Submit Order'}</span>
+                  </button>
+                </div>
               </>
             )}
 
             {checkoutStep === 4 && (
               <div className="py-4 text-center space-y-5">
-                <h3 className="text-2xl font-bold text-white">Order Sent!</h3>
-                <p className="text-xs text-gray-400">Order <span className="text-gray-200 font-mono font-bold">#{submittedOrderId}</span> submitted successfully.</p>
-                <button onClick={() => { resetOrder(); setCurrentScreen('tickets'); }} className="w-full py-4 bg-[#b5e054] text-black font-bold rounded-2xl text-sm">View My Tickets</button>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-white text-left">Order submitted</h3>
+                    <p className="text-xs text-gray-400 text-left">Step 3 of 3</p>
+                  </div>
+                  <button onClick={resetOrder} className="p-1.5 bg-[#162218] rounded-full text-gray-400">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                  <div className="h-1.5 bg-amber-500 rounded-full"></div>
+                </div>
+
+                <div className="py-6 flex flex-col items-center justify-center space-y-3">
+                  <div className="w-20 h-20 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <Check className="w-10 h-10 text-white stroke-[3]" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">Order Sent!</h3>
+                  <p className="text-xs text-gray-400 max-w-xs mx-auto leading-relaxed">
+                    Order <span className="text-gray-200 font-mono font-bold">#{submittedOrderId}</span> was sent successfully. Payment confirmation may take up to 24 hours.
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    resetOrder();
+                    setCurrentScreen('tickets');
+                  }}
+                  className="w-full py-4 bg-[#b5e054] hover:bg-[#a3cb49] text-black font-bold rounded-2xl text-sm transition"
+                >
+                  Close
+                </button>
               </div>
             )}
 
@@ -701,14 +1227,26 @@ export default function App() {
       )}
 
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#0d130e]/95 backdrop-blur-md border-t border-gray-800 py-2.5 px-6 flex justify-around items-center z-20">
-        <button onClick={() => setCurrentScreen('home')} className={`flex flex-col items-center gap-1 ${currentScreen === 'home' ? 'text-amber-400 font-semibold' : 'text-gray-400'}`}>
-          <HomeIcon className="w-5 h-5" /><span className="text-[11px]">Home</span>
+        <button 
+          onClick={() => setCurrentScreen('home')} 
+          className={`flex flex-col items-center gap-1 transition ${currentScreen === 'home' ? 'text-amber-400 font-semibold' : 'text-gray-400 hover:text-white'}`}
+        >
+          <HomeIcon className="w-5 h-5" />
+          <span className="text-[11px]">Home</span>
         </button>
-        <button onClick={() => setCurrentScreen('tickets')} className={`flex flex-col items-center gap-1 ${currentScreen === 'tickets' ? 'text-amber-400 font-semibold' : 'text-gray-400'}`}>
-          <Ticket className="w-5 h-5" /><span className="text-[11px]">Tickets</span>
+        <button 
+          onClick={() => setCurrentScreen('tickets')} 
+          className={`flex flex-col items-center gap-1 transition ${currentScreen === 'tickets' ? 'text-amber-400 font-semibold' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Ticket className="w-5 h-5" />
+          <span className="text-[11px]">Tickets</span>
         </button>
-        <button onClick={() => setCurrentScreen('profile')} className={`flex flex-col items-center gap-1 ${currentScreen === 'profile' ? 'text-amber-400 font-semibold' : 'text-gray-400'}`}>
-          <User className="w-5 h-5" /><span className="text-[11px]">Profile</span>
+        <button 
+          onClick={() => setCurrentScreen('profile')} 
+          className={`flex flex-col items-center gap-1 transition ${currentScreen === 'profile' ? 'text-amber-400 font-semibold' : 'text-gray-400 hover:text-white'}`}
+        >
+          <User className="w-5 h-5" />
+          <span className="text-[11px]">Profile</span>
         </button>
       </nav>
     </div>
