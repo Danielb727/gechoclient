@@ -266,6 +266,23 @@ export default function App() {
     }
   };
 
+  const handleUpdateLottery = async (id, updatedData) => {
+    try {
+      const res = await fetch(`${API_URL}/api/lotteries/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('✅ Car Lottery updated successfully!');
+        fetchLotteries();
+      }
+    } catch (err) {
+      console.error('Error updating lottery:', err);
+    }
+  };
+
   const handleApprove = async (orderId) => {
     try {
       await fetch(`${API_URL}/api/admin/tickets/${orderId}/approve`, { method: 'PATCH' });
@@ -311,7 +328,6 @@ export default function App() {
   const toggleNumber = (num) => {
     const numericNum = Number(num);
     
-    // STRICT BLOCK: If number is taken or sold, do nothing
     if (takenNumbers.includes(numericNum)) return;
 
     if (selectedNumbers.includes(numericNum)) {
@@ -484,9 +500,11 @@ export default function App() {
         </div>
         <AdminDashboard 
           tickets={adminTickets}
+          lotteries={lotteries}
           onApprove={handleApprove}
           onReject={handleReject}
           onAddLottery={handleAddLottery}
+          onUpdateLottery={handleUpdateLottery}
           apiUrl={API_URL}
         />
       </div>
@@ -881,7 +899,7 @@ export default function App() {
         </main>
       )}
 
-      {/* NUMBER PICKER MODAL - STRICT RED COLORING & DISABLE FOR TAKEN NUMBERS */}
+      {/* NUMBER PICKER MODAL */}
       {isNumberPickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-md bg-[#0f1711] border-t border-gray-800 rounded-t-3xl max-h-[85vh] flex flex-col p-4 animate-in slide-in-from-bottom">
