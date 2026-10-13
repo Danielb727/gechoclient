@@ -229,18 +229,17 @@ export default function AdminDashboard({ tickets = [], onApprove, onReject, onAd
 
               <div>
                 <label className="text-xs font-semibold text-gray-300 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Countdown Duration
+                  <Clock className="w-3.5 h-3.5 text-amber-400" /> Countdown Duration (Days)
                 </label>
-                <select 
-                  value={formData.durationDays}
+                <input 
+                  type="number" 
+                  min="1"
+                  required
+                  placeholder="e.g. 5, 12, 50, 2..."
+                  value={formData.durationDays} 
                   onChange={e => setFormData({...formData, durationDays: Number(e.target.value)})}
-                  className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                >
-                  <option value={7}>7 Days (1 Week)</option>
-                  <option value={14}>14 Days (2 Weeks)</option>
-                  <option value={30}>30 Days (1 Month)</option>
-                  <option value={60}>60 Days (2 Months)</option>
-                </select>
+                  className="w-full mt-1 bg-[#162218] border border-gray-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-amber-500" 
+                />
               </div>
 
               <button 
